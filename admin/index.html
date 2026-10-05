@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kola Express — Operations & Administration Console</title>
+  <meta name="description" content="Kola Express Unified Administrative Console — Real-time delivery dispatch, fleet oversight, handover auditing, and financial ledger.">
+  <link rel="stylesheet" href="./css/admin.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ===================================================================
+       1. STANDALONE ADMIN LOGIN PORTAL
+       =================================================================== -->
+  <div id="adminLoginPortal">
+    <div class="login-card">
+      <div class="login-brand-header">
+        <div class="login-logo-badge">
+          <span>⚡</span>
+          <span>OPERATIONS DESK</span>
+        </div>
+        <h1 class="login-title">Kola Express Admin</h1>
+        <p class="login-subtitle">Internal Dispatch &amp; Operations Management Portal</p>
+      </div>
+
+      <div id="loginErrorBox" style="display:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; padding:0.75rem 1rem; border-radius:6px; font-size:0.825rem; margin-bottom:1.25rem;"></div>
+
+      <form id="adminLoginForm">
+        <div class="form-group">
+          <label class="form-label" for="loginIdentifier">Admin Email or Phone</label>
+          <input type="text" id="loginIdentifier" class="form-input" placeholder="admin@kolaexpress.ug" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">Security Password</label>
+          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••••••" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="loginSubmitBtn" class="btn btn-primary" style="width:100%; padding:0.75rem; margin-top:0.5rem;">
+          <span>Secure Sign In</span>
+          <span>→</span>
+        </button>
+      </form>
+
+      <!-- Quick Role Presets for Demo & Testing -->
+      <div class="role-preset-box">
+        <div class="role-preset-title">Authorized Staff Role Presets</div>
+        <div class="role-preset-buttons">
+          <button type="button" class="role-chip-btn" id="fillSuperAdmin">
+            <span><strong>Super Admin</strong> (Full Access)</span>
+            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#60a5fa;">admin@kolaexpress.ug</span>
+          </button>
+          <button type="button" class="role-chip-btn" id="fillOpsAdmin">
+            <span><strong>Operations Admin</strong> (Dispatch &amp; Fleet)</span>
+            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#34d399;">ops@kolaexpress.ug</span>
+          </button>
+          <button type="button" class="role-chip-btn" id="fillFinanceAdmin">
+            <span><strong>Finance Admin</strong> (Ledger &amp; Reports)</span>
+            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#fbbf24;">finance@kolaexpress.ug</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       2. ADMIN APP MAIN LAYOUT (SIDEBAR + CONTENT PANES)
+       =================================================================== -->
+  <div id="adminAppLayout">
+    <!-- Sidebar Navigation -->
+    <aside class="admin-sidebar" id="adminSidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">K</div>
+        <div>
+          <div class="sidebar-brand-name">Kola Express</div>
+          <div style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:700; letter-spacing:0.05em;">Admin Console</div>
+        </div>
+      </div>
+
+      <div class="sidebar-role-badge">
+        <div class="sidebar-role-dot"></div>
+        <div class="sidebar-role-info">
+          <div class="sidebar-role-name" id="userRoleBadge">Super Admin</div>
+          <div class="sidebar-role-user" id="userNameBadge">Operations Desk</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Operations</div>
+        <button class="nav-link active" data-tab="dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-link" data-tab="deliveries" id="navDeliveries">
+          <span class="nav-icon">📦</span>
+          <span>Deliveries &amp; Tracking</span>
+        </button>
+        <button class="nav-link" data-tab="couriers" id="navCouriers">
+          <span class="nav-icon">🏍️</span>
+          <span>Courier Fleet</span>
+        </button>
+        <button class="nav-link" data-tab="customers" id="navCustomers">
+          <span class="nav-icon">👥</span>
+          <span>Customers</span>
+        </button>
+
+        <div class="nav-section-title" id="sectionFinanceTitle">Financials</div>
+        <button class="nav-link" data-tab="payments" id="navPayments">
+          <span class="nav-icon">💳</span>
+          <span>Payments Ledger</span>
+        </button>
+        <button class="nav-link" data-tab="reports" id="navReports">
+          <span class="nav-icon">📈</span>
+          <span>Reports &amp; Analytics</span>
+        </button>
+
+        <div class="nav-section-title" id="sectionSuperTitle">Governance</div>
+        <button class="nav-link" data-tab="pricing" id="navPricing">
+          <span class="nav-icon">⚙️</span>
+          <span>Pricing Engine</span>
+        </button>
+        <button class="nav-link" data-tab="audit" id="navAudit">
+          <span class="nav-icon">🛡️</span>
+          <span>Audit Logs</span>
+        </button>
+        <button class="nav-link" data-tab="staff" id="navStaff">
+          <span class="nav-icon">🔑</span>
+          <span>Admin Staff</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="themeToggleBtn" class="btn btn-secondary btn-sm" title="Toggle Light/Dark Theme">
+          <span>🌓 Theme</span>
+        </button>
+        <button id="logoutBtn" class="btn btn-danger btn-sm" title="Sign out of Admin Console">
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="admin-main">
+      <!-- Sticky Top Header -->
+      <header class="admin-header">
+        <div class="header-left">
+          <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">☰</button>
+          <h2 class="page-title" id="currentPageTitle">Operational Overview</h2>
+        </div>
+        <div class="header-right">
+          <div class="clock-badge" id="adminClock">EAT: --:--:--</div>
+          <button id="refreshDataBtn" class="btn btn-secondary btn-sm">
+            <span>🔄 Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dynamic Tab Panes -->
+      <div class="content-pane">
+
+        <!-- ===============================================================
+             TAB 1: DASHBOARD
+             =============================================================== -->
+        <section id="pane-dashboard" class="tab-pane">
+          <div class="stats-grid">
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Total Deliveries</span>
+                <span class="stat-icon blue">📦</span>
+              </div>
+              <div class="stat-value" id="statTotalDeliveries">0</div>
+              <div class="stat-subtext" id="statTotalSub">Active in database</div>
+            </div>
+
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Active Dispatches</span>
+                <span class="stat-icon amber">🚚</span>
+              </div>
+              <div class="stat-value" id="statActiveDeliveries">0</div>
+              <div class="stat-subtext">In-transit or assigned</div>
+            </div>
+
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Completed Deliveries</span>
+                <span class="stat-icon green">✅</span>
+              </div>
+              <div class="stat-value" id="statCompletedDeliveries">0</div>
+              <div class="stat-subtext">Successfully fulfilled</div>
+            </div>
+
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Active Couriers</span>
+                <span class="stat-icon blue">🏍️</span>
+              </div>
+              <div class="stat-value" id="statActiveCouriers">0</div>
+              <div class="stat-subtext" id="statCouriersSub">On-duty Kampala fleet</div>
+            </div>
+
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Total Revenue</span>
+                <span class="stat-icon green">UGX</span>
+              </div>
+              <div class="stat-value" id="statTotalRevenue">UGX 0</div>
+              <div class="stat-subtext">Confirmed cashless MoMo</div>
+            </div>
+
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Pending Handover</span>
+                <span class="stat-icon amber">🤝</span>
+              </div>
+              <div class="stat-value" id="statPendingHandover">0</div>
+              <div class="stat-subtext">Courier arrived at pickup</div>
+            </div>
+          </div>
+
+          <!-- Secondary Grid: Activity Stream + Quick Action Deliveries -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:1.5rem;">
+            <!-- Live Operational Event Stream -->
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3 class="admin-card-title">
+                  <span>⚡ Real-Time System Events</span>
+                </h3>
+                <span class="admin-badge info" id="eventStreamStatus">Live Stream</span>
+              </div>
+              <div id="dashboardEventList" style="display:flex; flex-direction:column; gap:0.75rem; max-height:420px; overflow-y:auto; padding-right:0.5rem;">
+                <div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:2rem 0;">Awaiting incoming events...</div>
+              </div>
+            </div>
+
+            <!-- Recent High-Priority Deliveries -->
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3 class="admin-card-title">
+                  <span>🔥 Priority Dispatch Queue</span>
+                </h3>
+                <button class="btn btn-secondary btn-sm" onclick="window.adminApp.switchTab('deliveries')">View All</button>
+              </div>
+              <div class="table-responsive">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Tracking ID</th>
+                      <th>Customer</th>
+                      <th>Pickup → Dropoff</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboardRecentDeliveriesTable">
+                    <tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">Loading priority dispatches...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 2: DELIVERIES & TRACKING
+             =============================================================== -->
+        <section id="pane-deliveries" class="tab-pane" style="display:none;">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3 class="admin-card-title">Delivery Dispatch &amp; Handover Monitoring</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">Monitor full lifecycle from customer creation, cashless payment, sender handover confirmation to PIN delivery.</p>
+              </div>
+              <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="deliveriesSearchInput" class="form-input" placeholder="Search tracking ID, phone, customer..." style="width:260px;">
+                <select id="deliveriesStatusFilter" class="form-select" style="width:180px;">
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending Payment</option>
+                  <option value="paid">Paid (Unassigned)</option>
+                  <option value="courier_assigned">Courier Assigned</option>
+                  <option value="courier_en_route">Courier En Route</option>
+                  <option value="courier_arrived">Awaiting Handover</option>
+                  <option value="picked_up">Picked Up (Handover Confirmed)</option>
+                  <option value="in_transit">In Transit</option>
+                  <option value="delivered">Delivered (PIN Confirmed)</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Tracking ID</th>
+                    <th>Created</th>
+                    <th>Customer</th>
+                    <th>Pickup &amp; Dropoff</th>
+                    <th>Package</th>
+                    <th>Courier</th>
+                    <th>Payment</th>
+                    <th>Status &amp; Handover</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="deliveriesTableBody">
+                  <tr><td colspan="9" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading delivery dispatches...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 3: COURIERS FLEET
+             =============================================================== -->
+        <section id="pane-couriers" class="tab-pane" style="display:none;">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3 class="admin-card-title">Courier Fleet Operations</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">Kampala motorcycle riders, vehicle dispatches, active status, and fulfilled order records.</p>
+              </div>
+              <button id="openAddCourierModalBtn" class="btn btn-primary btn-sm">
+                <span>➕ Register New Courier</span>
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Courier Name</th>
+                    <th>Phone Number</th>
+                    <th>Vehicle Details</th>
+                    <th>Status</th>
+                    <th>Active Deliveries</th>
+                    <th>Completed Deliveries</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="couriersTableBody">
+                  <tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading fleet couriers...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 4: CUSTOMERS
+             =============================================================== -->
+        <section id="pane-customers" class="tab-pane" style="display:none;">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3 class="admin-card-title">Customer Accounts Directory</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">Registered senders, order volumes, lifetime spend, and active dispatches.</p>
+              </div>
+              <input type="text" id="customersSearchInput" class="form-input" placeholder="Search customer by name, email, phone..." style="width:280px;">
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Contact Info</th>
+                    <th>Registered</th>
+                    <th>Total Orders</th>
+                    <th>Active Dispatches</th>
+                    <th>Total Spend</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="customersTableBody">
+                  <tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading registered customers...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 5: PAYMENTS LEDGER
+             =============================================================== -->
+        <section id="pane-payments" class="tab-pane" style="display:none;">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3 class="admin-card-title">Cashless MoMo Financial Ledger</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">MTN Mobile Money &amp; Airtel Money transaction logs with real reference IDs.</p>
+              </div>
+              <div style="display:flex; gap:0.75rem; align-items:center;">
+                <select id="paymentsStatusFilter" class="form-select" style="width:180px;">
+                  <option value="all">All Payments</option>
+                  <option value="successful">Successful (Paid)</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Transaction Ref</th>
+                    <th>Tracking ID</th>
+                    <th>Customer</th>
+                    <th>Amount</th>
+                    <th>Provider / Method</th>
+                    <th>Date &amp; Time</th>
+                    <th>Payment Status</th>
+                  </tr>
+                </thead>
+                <tbody id="paymentsTableBody">
+                  <tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading payments ledger...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 6: REPORTS & ANALYTICS
+             =============================================================== -->
+        <section id="pane-reports" class="tab-pane" style="display:none;">
+          <div class="stats-grid">
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Total Cash Inflow</span>
+                <span class="stat-icon green">💰</span>
+              </div>
+              <div class="stat-value" id="reportTotalRevenue">UGX 0</div>
+              <div class="stat-subtext">All verified MoMo transactions</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Fulfilled Orders</span>
+                <span class="stat-icon green">🎯</span>
+              </div>
+              <div class="stat-value" id="reportFulfilledOrders">0</div>
+              <div class="stat-subtext">Delivered with PIN check</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Cancelled Deliveries</span>
+                <span class="stat-icon rose">❌</span>
+              </div>
+              <div class="stat-value" id="reportCancelledOrders">0</div>
+              <div class="stat-subtext">Operational cancellations</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-top">
+                <span class="stat-label">Courier Fleet Size</span>
+                <span class="stat-icon blue">🏍️</span>
+              </div>
+              <div class="stat-value" id="reportFleetSize">0</div>
+              <div class="stat-subtext">Active dispatch partners</div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:1.5rem;">
+            <!-- Top Couriers Leaderboard -->
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3 class="admin-card-title">🏆 Top Performing Couriers</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Courier</th>
+                      <th>Phone</th>
+                      <th>Vehicle</th>
+                      <th>Completed Trips</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportCouriersTable">
+                    <tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading courier stats...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Volume by Status Breakdown -->
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3 class="admin-card-title">📊 Operational Status Distribution</h3>
+              </div>
+              <div id="reportStatusDistribution" style="display:flex; flex-direction:column; gap:0.75rem; padding:0.5rem 0;">
+                <div style="color:var(--text-muted); font-size:0.85rem; text-align:center;">Calculating distribution...</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 7: PRICING ENGINE (SUPER ADMIN ONLY)
+             =============================================================== -->
+        <section id="pane-pricing" class="tab-pane" style="display:none;">
+          <div class="admin-card" style="max-width:700px;">
+            <div class="admin-card-header">
+              <div>
+                <h3 class="admin-card-title">Automated Pricing Engine</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">Kampala distance rates, rush hour surcharges, and vehicle category multipliers.</p>
+              </div>
+              <span class="admin-badge warning">Super Admin Restricted</span>
+            </div>
+
+            <form id="adminPricingForm">
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="form-group">
+                  <label class="form-label">Base Fare (UGX)</label>
+                  <input type="number" id="pricingBaseFare" class="form-input" min="1000" step="500" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Rate Per KM (UGX)</label>
+                  <input type="number" id="pricingPerKm" class="form-input" min="500" step="100" required>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="form-group">
+                  <label class="form-label">Minimum Fare (UGX)</label>
+                  <input type="number" id="pricingMinFare" class="form-input" min="1000" step="500" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Rush Hour / Urgent Surcharge (UGX)</label>
+                  <input type="number" id="pricingRushSurcharge" class="form-input" min="0" step="500" required>
+                </div>
+              </div>
+
+              <!-- Category Surcharges (UGX) Section -->
+              <div style="margin-top:1.5rem; padding-top:1.25rem; border-top:1px solid var(--border-color);">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.85rem;">
+                  <div>
+                    <h4 style="font-size:0.95rem; font-weight:800; color:var(--text-main);">Category Surcharges (UGX)</h4>
+                    <p style="font-size:0.775rem; color:var(--text-muted); margin-top:0.2rem;">Adjust category fees added to customer quotes based on parcel type.</p>
+                  </div>
+                  <span class="admin-badge info">Kampala Flat Rates</span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
+                  <div class="form-group">
+                    <label class="form-label" for="pricingCatDocument">Document / Envelope (UGX)</label>
+                    <input type="number" id="pricingCatDocument" class="form-input" min="0" step="100" value="0" required>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="pricingCatSmallParcel">Small Parcel (UGX)</label>
+                    <input type="number" id="pricingCatSmallParcel" class="form-input" min="0" step="100" value="500" required>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="pricingCatMediumBox">Medium Box (UGX)</label>
+                    <input type="number" id="pricingCatMediumBox" class="form-input" min="0" step="100" value="1500" required>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="pricingCatLargePackage">Large Package (UGX)</label>
+                    <input type="number" id="pricingCatLargePackage" class="form-input" min="0" step="100" value="3000" required>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="pricingCatGroceries">Groceries (UGX)</label>
+                    <input type="number" id="pricingCatGroceries" class="form-input" min="0" step="100" value="1000" required>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="pricingCatFragile">Fragile Items (UGX)</label>
+                    <input type="number" id="pricingCatFragile" class="form-input" min="0" step="100" value="2000" required>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end;">
+                <button type="submit" id="savePricingRulesBtn" class="btn btn-primary">
+                  <span>Save Pricing Rules</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 8: AUDIT LOGS (SUPER ADMIN ONLY)
+             =============================================================== -->
+        <section id="pane-audit" class="tab-pane" style="display:none;">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3 class="admin-card-title">Immutable Admin Audit Logs</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">Cryptographically sequenced records of all staff actions, courier reassignments, and policy updates.</p>
+              </div>
+              <span class="admin-badge success">Security Verified</span>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Admin Staff</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Resource ID</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="auditLogsTableBody">
+                  <tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading audit logs...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===============================================================
+             TAB 9: ADMIN STAFF (SUPER ADMIN ONLY)
+             =============================================================== -->
+        <section id="pane-staff" class="tab-pane" style="display:none;">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3 class="admin-card-title">Internal Staff &amp; RBAC Control</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">Manage Super Admin, Operations Admin, and Finance Admin roles and access privileges.</p>
+              </div>
+              <button id="openAddStaffModalBtn" class="btn btn-primary btn-sm">
+                <span>➕ Provision Admin Account</span>
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Staff Name</th>
+                    <th>Email Address</th>
+                    <th>Phone</th>
+                    <th>Assigned Role</th>
+                    <th>Account Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="staffTableBody">
+                  <tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading admin staff directory...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 1: DELIVERY INSPECTOR & HANDOVER AUDIT TIMELINE
+       =================================================================== -->
+  <div class="admin-modal-overlay" id="modalInspectDelivery">
+    <div class="admin-modal" style="max-width:750px;">
+      <div class="admin-modal-header">
+        <div>
+          <h3 style="font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
+            <span>📦 Delivery Inspector:</span>
+            <span id="inspectTrackingId" style="font-family:var(--font-mono); color:#60a5fa;"></span>
+          </h3>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">Detailed event trail, sender handover confirmation, and recipient PIN audit.</p>
+        </div>
+        <button class="modal-close-btn" onclick="window.adminApp.closeModal('modalInspectDelivery')">&times;</button>
+      </div>
+
+      <div id="inspectDeliveryContent">
+        <!-- Rendered dynamically by adminApp -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 2: ASSIGN COURIER
+       =================================================================== -->
+  <div class="admin-modal-overlay" id="modalAssignCourier">
+    <div class="admin-modal" style="max-width:480px;">
+      <div class="admin-modal-header">
+        <h3 style="font-size:1.1rem; font-weight:800;">Dispatch / Assign Courier</h3>
+        <button class="modal-close-btn" onclick="window.adminApp.closeModal('modalAssignCourier')">&times;</button>
+      </div>
+      <form id="assignCourierForm">
+        <input type="hidden" id="assignDeliveryId">
+        <div class="form-group">
+          <label class="form-label">Select Available Courier</label>
+          <select id="assignCourierSelect" class="form-select" required>
+            <option value="">Select an active courier...</option>
+          </select>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="window.adminApp.closeModal('modalAssignCourier')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Confirm Assignment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 3: CANCEL DELIVERY
+       =================================================================== -->
+  <div class="admin-modal-overlay" id="modalCancelDelivery">
+    <div class="admin-modal" style="max-width:480px;">
+      <div class="admin-modal-header">
+        <h3 style="font-size:1.1rem; font-weight:800; color:#f87171;">Cancel Delivery Dispatch</h3>
+        <button class="modal-close-btn" onclick="window.adminApp.closeModal('modalCancelDelivery')">&times;</button>
+      </div>
+      <form id="cancelDeliveryForm">
+        <input type="hidden" id="cancelDeliveryId">
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
+          Operational cancellations are strictly logged in the Super Admin audit trail. Please specify a clear operational reason.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Reason for Cancellation</label>
+          <textarea id="cancelDeliveryReason" class="form-textarea" rows="3" placeholder="e.g., Sender requested cancellation prior to pickup; inaccessible road..." required></textarea>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="window.adminApp.closeModal('modalCancelDelivery')">Back</button>
+          <button type="submit" class="btn btn-danger">Confirm Cancellation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 4: REGISTER COURIER
+       =================================================================== -->
+  <div class="admin-modal-overlay" id="modalAddCourier">
+    <div class="admin-modal" style="max-width:500px;">
+      <div class="admin-modal-header">
+        <h3 style="font-size:1.1rem; font-weight:800;">Register New Courier</h3>
+        <button class="modal-close-btn" onclick="window.adminApp.closeModal('modalAddCourier')">&times;</button>
+      </div>
+      <form id="addCourierForm">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="newCourierName" class="form-input" placeholder="e.g. Samuel Mugisha" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number (MTN / Airtel Uganda)</label>
+          <input type="text" id="newCourierPhone" class="form-input" placeholder="077XXXXXXX" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vehicle Type</label>
+          <select id="newCourierVehicle" class="form-select">
+            <option value="motorcycle">Motorcycle (Boda Boda)</option>
+            <option value="car">Small Car</option>
+            <option value="van">Van / Pickup</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vehicle Registration Plate</label>
+          <input type="text" id="newCourierPlate" class="form-input" placeholder="UFG 234P" required>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="window.adminApp.closeModal('modalAddCourier')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Courier Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 5: PROVISION ADMIN STAFF (SUPER ADMIN)
+       =================================================================== -->
+  <div class="admin-modal-overlay" id="modalAddStaff">
+    <div class="admin-modal" style="max-width:500px;">
+      <div class="admin-modal-header">
+        <h3 style="font-size:1.1rem; font-weight:800;">Provision Admin Account</h3>
+        <button class="modal-close-btn" onclick="window.adminApp.closeModal('modalAddStaff')">&times;</button>
+      </div>
+      <form id="addStaffForm">
+        <div class="form-group">
+          <label class="form-label">Staff Full Name</label>
+          <input type="text" id="newStaffName" class="form-input" placeholder="e.g. John Bosco" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Work Email</label>
+          <input type="email" id="newStaffEmail" class="form-input" placeholder="john@kolaexpress.ug" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input type="text" id="newStaffPhone" class="form-input" placeholder="077XXXXXXX" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Administrative Role</label>
+          <select id="newStaffRole" class="form-select" required>
+            <option value="operations_admin">Operations Admin (Dispatch, Handover, Fleet)</option>
+            <option value="finance_admin">Finance Admin (Payments, Financial Reports)</option>
+            <option value="super_admin">Super Admin (Unrestricted Governance)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Initial Password</label>
+          <input type="password" id="newStaffPassword" class="form-input" placeholder="Min 6 characters" minlength="6" required>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="window.adminApp.closeModal('modalAddStaff')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Provision Staff Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="./js/admin-api.js"></script>
+  <script src="./js/admin-app.js"></script>
+</body>
+</html>

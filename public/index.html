@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>Kola Express — Send it. We deliver it. | Fast Kampala Delivery</title>
+  <meta name="description" content="Kola Express is Kampala's fast, modern, 100% cashless digital delivery request service. Simple parcel, package, and document transport via verified couriers with MTN & Airtel Mobile Money.">
+  <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- ===================================================================
+       MANDATORY SITE ACCESS GATE (REGISTRATION & AUTHENTICATION)
+       =================================================================== -->
+  <div id="siteAuthGate" class="auth-gate-overlay">
+    <div class="auth-gate-container">
+      
+      <!-- Brand & Header -->
+      <div class="auth-gate-header">
+        <div class="auth-gate-brand">
+          <img src="/assets/logo.jpg" alt="Kola Express Logo" class="auth-gate-logo" width="46" height="46">
+          <div class="auth-gate-brand-text">
+            <span class="auth-gate-brand-name">KOLA <span>EXPRESS</span></span>
+            <span class="auth-gate-brand-tagline">Kampala's Express Delivery Service</span>
+          </div>
+        </div>
+        <div class="auth-gate-badge">
+          <span class="pulse-dot"></span>
+          <span>Registration Required to Access</span>
+        </div>
+      </div>
+
+      <!-- Main Gate Card -->
+      <div class="auth-gate-card">
+        
+        <!-- Welcome Hero Info -->
+        <div class="auth-gate-hero">
+          <h1 class="auth-gate-title">Welcome to Kola Express</h1>
+          <p class="auth-gate-desc">
+            Please register with your <strong>email address or phone number</strong> to unlock Kampala's on-demand courier dispatch, live parcel tracking, and 100% cashless delivery.
+          </p>
+          <div class="auth-gate-perks">
+            <div class="auth-perk-item">
+              <span class="auth-perk-dot">✓</span>
+              <span>Fast express pickup across all Kampala zones</span>
+            </div>
+            <div class="auth-perk-item">
+              <span class="auth-perk-dot">✓</span>
+              <span>100% Cashless MTN MoMo &amp; Airtel Money</span>
+            </div>
+            <div class="auth-perk-item">
+              <span class="auth-perk-dot">✓</span>
+              <span>Verified Boda Boda couriers &amp; live GPS updates</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode Toggle Tabs (Register is active by default) -->
+        <div class="auth-gate-tabs">
+          <button type="button" class="auth-gate-tab active" id="tabGateRegister">Create Account</button>
+          <button type="button" class="auth-gate-tab" id="tabGateLogin">Log In</button>
+        </div>
+
+        <!-- Form 1: Registration Form -->
+        <form id="gateRegisterForm" class="auth-gate-form">
+          <div class="form-group">
+            <label for="gateRegFullName">Full Name <span class="req">*</span></label>
+            <input type="text" id="gateRegFullName" class="form-input" placeholder="e.g. Sarah Namubiru" required autocomplete="name">
+          </div>
+
+          <div class="form-group">
+            <label for="gateRegIdentifier">Email Address or Phone Number <span class="req">*</span></label>
+            <input type="text" id="gateRegIdentifier" class="form-input" placeholder="e.g. 0775123456 or sarah@example.com" required autocomplete="username">
+            <div class="form-helper-text">You can register with either your Uganda mobile number (MTN / Airtel) or your email address.</div>
+          </div>
+
+          <div class="form-group">
+            <label for="gateRegPassword">Password <span class="req">*</span></label>
+            <input type="password" id="gateRegPassword" class="form-input" placeholder="Create a password (min 4 characters)" minlength="4" required autocomplete="new-password">
+          </div>
+
+          <div id="gateRegError" class="auth-gate-alert" style="display: none;"></div>
+
+          <button type="submit" class="btn-primary btn-block auth-gate-submit-btn" id="gateRegSubmitBtn">
+            <span>Register &amp; Unlock Site Interface →</span>
+          </button>
+
+          <div class="auth-gate-switch">
+            <span>Already have an account?</span>
+            <button type="button" class="auth-switch-link" id="gateGoToLogin">Log In</button>
+          </div>
+        </form>
+
+        <!-- Form 2: Login Form (Hidden by default) -->
+        <form id="gateLoginForm" class="auth-gate-form" style="display: none;">
+          <div class="form-group">
+            <label for="gateLoginIdentifier">Email Address or Phone Number <span class="req">*</span></label>
+            <input type="text" id="gateLoginIdentifier" class="form-input" placeholder="e.g. 0775123456 or sarah@example.com" required autocomplete="username">
+          </div>
+
+          <div class="form-group">
+            <label for="gateLoginPassword">Password <span class="req">*</span></label>
+            <input type="password" id="gateLoginPassword" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
+          </div>
+
+          <div id="gateLoginError" class="auth-gate-alert" style="display: none;"></div>
+
+          <button type="submit" class="btn-primary btn-block auth-gate-submit-btn" id="gateLoginSubmitBtn">
+            <span>Log In &amp; Access Kola Express →</span>
+          </button>
+
+          <div class="auth-gate-switch">
+            <span>New to Kola Express?</span>
+            <button type="button" class="auth-switch-link" id="gateGoToRegister">Create an account with Email or Phone</button>
+          </div>
+
+          <div class="auth-courier-hint" style="margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid rgba(255, 255, 255, 0.08); text-align: center; font-size: 0.775rem; color: #94a3b8; line-height: 1.4;">
+            <span>🏍️ <strong>Kola Express Courier Rider?</strong> Enter your registered phone number &amp; password above to access assigned deliveries.</span>
+          </div>
+        </form>
+
+        <!-- Security & Privacy Assurance Notice -->
+        <div class="auth-gate-security-notice">
+          <div class="security-notice-icon">🔒</div>
+          <div class="security-notice-text">
+            <strong>Bank-Grade Secure &amp; 100% Cashless</strong>
+            <span>Encrypted credentials &amp; secure session protection for every Kola Express account.</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Info in Gate -->
+      <div class="auth-gate-footer">
+        &copy; 2026 Kola Express. Kampala, Uganda • 100% Cashless On-Demand Delivery.
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       WHOLE SITE INTERFACE WRAPPER (GATED FOR REGISTERED USERS)
+       =================================================================== -->
+  <div id="siteContentWrap" style="display: none;">
+
+  <!-- ===================================================================
+       TOP DEMO / ROLE SWITCHER BAR (Instant 1-Click Evaluation)
+       =================================================================== -->
+  <aside class="demo-role-bar" id="topRoleBar" aria-label="Portal Switcher">
+    <div class="container">
+      <div class="role-switcher-title" id="roleBarTitle">
+        <span>Delivery Portal:</span>
+      </div>
+      <div class="role-chips">
+        <button class="role-chip active" id="chipCustomerApp" data-view="home">Customer App</button>
+        <button class="role-chip" id="chipCourierTasks" data-view="courier" style="display: none;">Assigned Tasks</button>
+        <button class="role-chip" id="chipLiveTracking" data-view="track">Live Tracking</button>
+        <button class="role-chip" id="themeToggleBtn" title="Toggle Clean Delivery / Dark Mode">Delivery Light</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================
+       HEADER & NAVIGATION
+       =================================================================== -->
+  <header class="site-header">
+    <div class="container">
+      <div class="nav-wrap">
+        <div class="brand" onclick="window.kolaApp.handleBrandClick()">
+          <img src="/assets/logo.jpg" alt="Kola Express Logo" class="brand-logo-img">
+          <div class="brand-text">
+            <span class="brand-name">KOLA <span>EXPRESS</span></span>
+            <span class="brand-tagline" id="brandTagline">Send it. We deliver it.</span>
+          </div>
+        </div>
+
+        <div class="city-badge">
+          <span class="pulse-dot"></span>
+          <span>Kampala, Uganda • Cashless MoMo</span>
+        </div>
+
+        <nav class="nav-menu" id="navMenu">
+          <div id="customerNavItems" class="nav-role-group">
+            <a href="#" class="nav-link active" data-view="home">Home</a>
+            <a href="#" class="nav-link" data-view="track">Track</a>
+            <a href="#" class="nav-link" data-view="account">My Account</a>
+            <button class="nav-btn" onclick="window.kolaApp.switchView('request');">
+              <span>Request Delivery</span>
+            </button>
+          </div>
+
+          <div id="courierNavItems" class="nav-role-group" style="display: none;">
+            <a href="#" class="nav-link active" data-view="courier">Assigned Tasks</a>
+            <a href="#" class="nav-link" data-view="track">Live Tracking</a>
+            <span class="courier-online-pill">Rider Online</span>
+          </div>
+
+          <div class="user-header-badge" id="headerUserBadge" style="display: none;">
+            <span class="user-avatar-dot"></span>
+            <span id="headerUserName">User</span>
+            <span id="headerUserRole" class="user-role-badge">Customer</span>
+            <button type="button" class="btn-logout-tiny logout-btn" title="Log Out">Log Out</button>
+          </div>
+        </nav>
+
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle Navigation">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================
+       VIEW 1: CUSTOMER HOME & REQUEST APP
+       =================================================================== -->
+  <main id="view-home">
+
+    <!-- Global Sender Package Handover Confirmation Banner (Customer App Only) -->
+    <aside id="customerHandoverAlert" class="sender-handover-alert-banner" style="display: none;" aria-live="polite">
+      <div class="container">
+        <div class="handover-alert-inner">
+          <div class="handover-alert-info">
+            <div class="handover-title-row">
+              <span class="handover-pulse-dot"></span>
+              <h3 class="handover-headline">PACKAGE HANDOVER CONFIRMATION</h3>
+              <span class="handover-badge-action">ACTION REQUIRED</span>
+            </div>
+            <p class="handover-body-text" id="handoverAlertText">
+              Your courier has arrived to collect delivery <strong>KOLA-20261005-000188</strong>.
+              <br>
+              <span class="handover-rule-text">Only confirm after you have physically handed the package to the courier.</span>
+            </p>
+            <div id="handoverDisputeMsg" class="handover-dispute-alert" style="display: none;">
+              The sender has not yet confirmed package handover. Please hand the physical package to the courier, then press Confirm Handover below.
+            </div>
+          </div>
+
+          <div class="handover-alert-actions">
+            <button type="button" class="btn-handover-confirm" id="btnAlertConfirmHandover">
+              CONFIRM PACKAGE HANDOVER
+            </button>
+            <button type="button" class="btn-handover-dispute" id="btnAlertDisputeHandover">
+              I HAVE NOT HANDED OVER THE PACKAGE
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+    
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="container">
+        <div class="hero-grid">
+          <div class="hero-content">
+            <div class="hero-pill">
+              <span>🚀 100% Cashless On-Demand Delivery</span>
+            </div>
+            <h1 class="hero-title">
+              Send it. <span>We deliver it.</span>
+            </h1>
+            <p class="hero-subtitle">
+              Fast, simple and reliable delivery across Kampala. No business account required—request an express pickup for parcels, documents, packages or items in seconds.
+            </p>
+            <div class="hero-actions">
+              <button class="btn-primary" id="heroRequestBtn">
+                <span>Request a Delivery</span>
+              </button>
+              <button class="btn-secondary" id="heroTrackBtn">
+                <span>Track a Delivery</span>
+              </button>
+            </div>
+            <div class="hero-badges">
+              <div class="hero-badge-item">
+                <span>🟡</span>
+                <span><strong>MTN</strong> MoMo</span>
+              </div>
+              <div class="hero-badge-item">
+                <span>🔴</span>
+                <span><strong>Airtel</strong> Money</span>
+              </div>
+              <div class="hero-badge-item">
+                <span>🛵</span>
+                <span>Verified <strong>Boda Boda</strong> Couriers</span>
+              </div>
+              <div class="hero-badge-item">
+                <span>⏱️</span>
+                <span>Avg. Pickup <strong>&lt; 20 Mins</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-visual">
+            <div class="hero-image-frame">
+              <img src="/assets/hero.jpg" alt="Kola Express Kampala Courier Delivery">
+            </div>
+            <div class="hero-float-card">
+              <div class="float-icon">✓</div>
+              <div>
+                <div style="font-weight: 700; font-size: 0.85rem;">City-Wide Coverage</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Central, Kololo, Ntinda, Bugolobi &amp; all Kampala zones</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works (4 Simple Steps) -->
+    <section class="steps-section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-tag">Simple &amp; Frictionless</span>
+          <h2 class="section-title">How Kola Express Works</h2>
+          <p class="section-desc">Experience effortless urban delivery in four transparent steps without marketplace clutter.</p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">01</div>
+            <h3 class="step-title">1. Request</h3>
+            <p class="step-body">Tell us where to pick up your item and where it needs to go. Add specific directions for easy pickup.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">02</div>
+            <h3 class="step-title">2. Pay Cashless</h3>
+            <p class="step-body">Pay instantly and securely using MTN Mobile Money or Airtel Money with an automatic push prompt.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">03</div>
+            <h3 class="step-title">3. Track</h3>
+            <p class="step-body">A verified courier is assigned immediately. Follow your package step-by-step with real-time updates.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">04</div>
+            <h3 class="step-title">4. Delivered</h3>
+            <p class="step-body">Your item reaches the recipient safely. Confirmation is recorded in the system audit trail.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Delivery Request Section -->
+    <section class="request-section" id="requestSection">
+      <div class="container">
+        <div class="request-layout">
+          
+          <!-- Delivery Request Form -->
+          <div class="form-card">
+            <div class="form-header">
+              <h2>Request a Delivery</h2>
+              <p>Enter pickup, destination, and package details. We'll pick it up and deliver it across Kampala.</p>
+            </div>
+
+            <form id="deliveryRequestForm">
+              
+              <!-- 1. Sender Details -->
+              <fieldset class="form-fieldset">
+                <legend class="fieldset-title">
+                  <span>1. Sender / Pickup Details</span>
+                </legend>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="senderNameInput">Sender Full Name <span class="req">*</span></label>
+                    <input type="text" id="senderNameInput" class="form-input" placeholder="e.g. Sarah Namubiru" value="Sarah Namubiru" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="senderPhoneInput">Sender Phone (Uganda) <span class="req">*</span></label>
+                    <input type="tel" id="senderPhoneInput" class="form-input" placeholder="e.g. 0775123456" value="0775123456" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="pickupLocationInput">Pickup Location / Landmark <span class="req">*</span></label>
+                  <input type="text" id="pickupLocationInput" class="form-input" placeholder="e.g. Kikuubo, Central Kampala" value="Kikuubo, Central Kampala" required>
+                  <div class="quick-chips-wrap">
+                    <span class="quick-chip-label">Quick select:</span>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Kikuubo Commercial Plaza, Downtown">Kikuubo</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Nakasero Market, Kampala">Nakasero</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Acacia Mall, Kisementi, Kololo">Acacia Mall</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Kamwokya, Kira Road">Kamwokya</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Makerere University, Main Gate">Makerere</button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="pickupDirectionsInput">Detailed Pickup Directions</label>
+                  <textarea id="pickupDirectionsInput" class="form-textarea" placeholder="e.g. Near XYZ building, second floor, shop G-14">Near XYZ building, second floor, shop G-14</textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="pickupNotesInput">Optional Pickup Notes</label>
+                  <input type="text" id="pickupNotesInput" class="form-input" placeholder="e.g. Call before parking outside">
+                </div>
+              </fieldset>
+
+              <!-- 2. Recipient Details -->
+              <fieldset class="form-fieldset">
+                <legend class="fieldset-title dest">
+                  <span>2. Recipient / Delivery Details</span>
+                </legend>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="recipientNameInput">Recipient Full Name <span class="req">*</span></label>
+                    <input type="text" id="recipientNameInput" class="form-input" placeholder="e.g. John Doe" value="John Doe" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="recipientPhoneInput">Recipient Phone (Uganda) <span class="req">*</span></label>
+                    <input type="tel" id="recipientPhoneInput" class="form-input" placeholder="e.g. 0702987654" value="0702987654" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="deliveryLocationInput">Destination Location / Landmark <span class="req">*</span></label>
+                  <input type="text" id="deliveryLocationInput" class="form-input" placeholder="e.g. Ntinda Complex, Kampala" value="Ntinda Complex, Ntinda" required>
+                  <div class="quick-chips-wrap">
+                    <span class="quick-chip-label">Quick select:</span>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Ntinda Complex, Ntinda">Ntinda</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Village Mall, Bugolobi">Bugolobi</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Kansanga, Ggaba Road">Kansanga</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Naalya Metroplex">Naalya</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Mengo, Albert Cook Road">Mengo</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Luzira Port Bell">Luzira</button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="deliveryDirectionsInput">Detailed Delivery Directions</label>
+                  <textarea id="deliveryDirectionsInput" class="form-textarea" placeholder="e.g. Block B, 2nd floor, Tech Hub office">Block B, 2nd floor, Tech Hub office</textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="deliveryNotesInput">Optional Delivery Instructions</label>
+                  <input type="text" id="deliveryNotesInput" class="form-input" placeholder="e.g. Call recipient when arriving" value="Call recipient when arriving">
+                </div>
+              </fieldset>
+
+              <!-- 3. Item Details -->
+              <fieldset class="form-fieldset">
+                <legend class="fieldset-title">
+                  <span>3. Item &amp; Package Details</span>
+                </legend>
+
+                <div class="form-group">
+                  <label for="itemDescriptionInput">Item / Package Description <span class="req">*</span></label>
+                  <input type="text" id="itemDescriptionInput" class="form-input" placeholder="e.g. Legal documents, Small parcel, Groceries, Spare parts" value="Legal contract documents and corporate seal" required>
+                </div>
+
+                <div class="form-group">
+                  <label>Package Category / Size</label>
+                  <div class="category-selector">
+                    <label class="category-option">
+                      <input type="radio" name="item_category" value="document" checked>
+                      <div class="category-box">
+                        <span class="category-name">Document / Envelope</span>
+                        <span class="category-fee">+0 UGX</span>
+                      </div>
+                    </label>
+
+                    <label class="category-option">
+                      <input type="radio" name="item_category" value="small_parcel">
+                      <div class="category-box">
+                        <span class="category-name">Small Parcel</span>
+                        <span class="category-fee">+500 UGX</span>
+                      </div>
+                    </label>
+
+                    <label class="category-option">
+                      <input type="radio" name="item_category" value="medium_box">
+                      <div class="category-box">
+                        <span class="category-name">Medium Box</span>
+                        <span class="category-fee">+1,500 UGX</span>
+                      </div>
+                    </label>
+
+                    <label class="category-option">
+                      <input type="radio" name="item_category" value="large_package">
+                      <div class="category-box">
+                        <span class="category-name">Large Package</span>
+                        <span class="category-fee">+3,000 UGX</span>
+                      </div>
+                    </label>
+
+                    <label class="category-option">
+                      <input type="radio" name="item_category" value="groceries">
+                      <div class="category-box">
+                        <span class="category-name">Groceries</span>
+                        <span class="category-fee">+1,000 UGX</span>
+                      </div>
+                    </label>
+
+                    <label class="category-option">
+                      <input type="radio" name="item_category" value="fragile">
+                      <div class="category-box">
+                        <span class="category-name">Fragile Item</span>
+                        <span class="category-fee">+2,000 UGX</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="specialInstructionsInput">Special Handling Instructions</label>
+                  <input type="text" id="specialInstructionsInput" class="form-input" placeholder="e.g. Keep flat, do not bend, keep dry" value="Keep flat in waterproof folder">
+                </div>
+
+                <!-- Urgent Express Toggle -->
+                <div class="urgent-toggle-box" onclick="document.getElementById('urgentDeliveryToggle').click()">
+                  <div class="urgent-info">
+                    <div>
+                      <div class="urgent-title">Urgent Express Priority Dispatch</div>
+                      <div class="urgent-sub">Immediate courier assignment &amp; direct routing (+3,000 UGX)</div>
+                    </div>
+                  </div>
+                  <label class="switch" onclick="event.stopPropagation()">
+                    <input type="checkbox" id="urgentDeliveryToggle">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <button type="submit" class="btn-primary btn-block" id="submitRequestBtn">
+                <span>Confirm &amp; Proceed to Cashless Payment →</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Live Pricing Quote Card (Sticky) -->
+          <div class="pricing-quote-card">
+            <div class="quote-header">
+              <h3>Delivery Fee Quote</h3>
+              <span class="quote-badge">Live Estimate</span>
+            </div>
+
+            <ul class="quote-breakdown-list">
+              <li class="quote-item">
+                <span>Estimated Distance:</span>
+                <strong id="quoteDistance">7.5 km</strong>
+              </li>
+              <li class="quote-item">
+                <span>Base Delivery Fee:</span>
+                <strong id="quoteBaseFee">UGX 4,000</strong>
+              </li>
+              <li class="quote-item">
+                <span>Distance Charge:</span>
+                <strong id="quoteDistanceFee">UGX 6,000</strong>
+              </li>
+              <li class="quote-item">
+                <span>Item Category Surcharge:</span>
+                <strong id="quoteCategoryFee">UGX 0</strong>
+              </li>
+              <li class="quote-item" id="quoteUrgentRow" style="display: none; color: var(--kola-blue-dark); font-weight: 700;">
+                <span>Urgent Express Dispatch:</span>
+                <strong id="quoteUrgentFee">+ UGX 3,000</strong>
+              </li>
+            </ul>
+
+            <div class="quote-total-box">
+              <div class="total-label">Total Delivery Fee:</div>
+              <div class="total-amount" id="quoteTotalFee">10,000<small>UGX</small></div>
+            </div>
+
+            <div class="cashless-notice">
+              <span>💳</span>
+              <span><strong>100% Cashless:</strong> Pay via MTN Mobile Money or Airtel Money before courier dispatch.</span>
+            </div>
+
+            <div style="font-size: 0.8rem; color: var(--text-dim); text-align: center; line-height: 1.4;">
+              Rates are calculated dynamically based on Kampala road distance and package size. Configured securely by Kola Express.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================
+       VIEW 2: DELIVERY TRACKING PAGE
+       =================================================================== -->
+  <section id="view-track" class="tracking-section" style="display: none;">
+    <div class="container">
+      
+      <div class="tracking-lookup-box">
+        <h2 style="font-size: 1.5rem; margin-bottom: 0.35rem; text-align: center;">Track Your Delivery</h2>
+        <p style="text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+          Enter your unique Kola Express tracking number (e.g., KOLA-20261005-000123)
+        </p>
+
+        <div class="lookup-input-group">
+          <input type="text" id="trackNumberInput" class="lookup-input" placeholder="e.g. KOLA-20261005-000123" value="KOLA-20261005-000123">
+          <button class="btn-primary" id="trackLookupBtn">
+            <span>Track Delivery</span>
+          </button>
+        </div>
+
+        <div class="quick-chips-wrap" style="justify-content: center; margin-top: 1rem;">
+          <span class="quick-chip-label">Sample active tracking:</span>
+          <button class="quick-chip" onclick="document.getElementById('trackNumberInput').value='KOLA-20261005-000188'; document.getElementById('trackLookupBtn').click();">KOLA-20261005-000188 (Awaiting Handover)</button>
+          <button class="quick-chip" onclick="document.getElementById('trackNumberInput').value='KOLA-20261005-000123'; document.getElementById('trackLookupBtn').click();">KOLA-20261005-000123 (In Transit)</button>
+          <button class="quick-chip" onclick="document.getElementById('trackNumberInput').value='KOLA-20261004-000982'; document.getElementById('trackLookupBtn').click();">KOLA-20261004-000982 (Delivered)</button>
+          <button class="quick-chip" onclick="document.getElementById('trackNumberInput').value='KOLA-20261005-000145'; document.getElementById('trackLookupBtn').click();">KOLA-20261005-000145 (Confirmed)</button>
+        </div>
+      </div>
+
+      <!-- Tracking Results Wrap -->
+      <div class="tracking-result-wrap" id="trackingResultWrap" style="display: none;">
+        
+        <div class="tracking-top-bar">
+          <div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Tracking Number</div>
+            <div class="tracking-id-tag">
+              <span id="trackDisplayId">KOLA-20261005-000123</span>
+              <button class="copy-btn" id="copyTrackingBtn">Copy</button>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Request Date</div>
+            <div style="font-weight: 600;" id="trackDisplayDate">October 5, 2026</div>
+          </div>
+        </div>
+
+        <!-- 10-Status Stepper -->
+        <div class="status-stepper" id="statusStepper">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Live Handover Confirmation Card (Inside Tracking view when awaiting confirmation) -->
+        <div id="trackHandoverActionCard" class="track-handover-action-card" style="display: none;">
+          <div class="handover-box-header">
+            <span class="handover-pulse-dot"></span>
+            <h4>PACKAGE HANDOVER CONFIRMATION</h4>
+          </div>
+          <p style="font-size: 0.9rem; margin-bottom: 0.75rem;">
+            Your courier has arrived to collect your package.
+            <br>
+            <strong style="color: #ea580c;">Only confirm after you have physically handed the package to the courier.</strong>
+          </p>
+          <div class="handover-btn-group">
+            <button type="button" class="btn-handover-confirm" id="btnTrackConfirmHandover">
+              CONFIRM PACKAGE HANDOVER
+            </button>
+            <button type="button" class="btn-handover-dispute" id="btnTrackDisputeHandover">
+              I HAVE NOT HANDED OVER THE PACKAGE
+            </button>
+          </div>
+        </div>
+
+        <!-- Verified Handover Certificate Badge (Shown when handover is confirmed) -->
+        <div id="trackHandoverVerifiedBox" class="track-handover-verified-box" style="display: none;">
+          <div class="verified-icon">✓</div>
+          <div>
+            <div style="font-weight: 800; font-size: 0.95rem; color: #059669;">Sender Confirmed Package Handover</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">
+              Handover ID: <strong id="trackHandoverId" style="font-family: monospace; color: var(--kola-blue-dark);">KOLA-HO-20261005-000123</strong>
+              • Confirmed at: <span id="trackHandoverTime">October 5, 2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SPECIAL RECIPIENT DELIVERY PIN CARD (Given to sender to share with recipient) -->
+        <div id="trackRecipientPinCard" class="recipient-pin-card" style="display: none;">
+          <div class="pin-card-top">
+            <div class="pin-badge-indicator">
+              <span class="pin-lock-glyph">🔐</span>
+              <span class="pin-badge-text">RIGHTFUL OWNER CONFIRMATION PIN</span>
+            </div>
+            <h3 class="pin-card-heading">Special Delivery PIN for Recipient</h3>
+            <p class="pin-card-desc">
+              Give this special PIN to your recipient, <strong id="pinRecipientName">Recipient</strong> (<span id="pinRecipientPhone">07XXXXXXXX</span>).
+              <br>
+              When the courier arrives, your recipient will read this PIN to the courier to confirm that the package is being delivered to the rightful owner.
+            </p>
+          </div>
+
+          <div class="pin-display-container">
+            <div class="pin-digit-group" id="pinDigitGroup">
+              <span class="pin-digit-box" id="pinBox0">-</span>
+              <span class="pin-digit-box" id="pinBox1">-</span>
+              <span class="pin-digit-box" id="pinBox2">-</span>
+              <span class="pin-digit-box" id="pinBox3">-</span>
+            </div>
+            <div class="pin-action-buttons">
+              <button type="button" class="btn-copy-pin" id="btnCopyDeliveryPin" title="Copy 4-digit PIN">
+                📋 Copy PIN
+              </button>
+              <a href="#" target="_blank" class="btn-whatsapp-pin" id="btnSharePinWhatsapp" title="Send PIN to recipient via WhatsApp">
+                💬 Share with Recipient
+              </a>
+            </div>
+          </div>
+
+          <div id="pinStatusIndicator" class="pin-status-pill pending">
+            <span class="pin-status-dot"></span>
+            <span id="pinStatusText">Awaiting delivery: Recipient will read this PIN to courier upon arrival</span>
+          </div>
+        </div>
+
+        <!-- Courier Assigned Badge Box (If Courier Assigned) -->
+        <div class="courier-badge-box" id="trackCourierBox" style="display: none;">
+          <div class="courier-avatar">Rider</div>
+          <div>
+            <div class="courier-info-head">
+              <span class="courier-name" id="trackCourierName">Musa Ssewankambo</span>
+              <span class="courier-rating" id="trackCourierRating">★ 4.95 (142 trips)</span>
+            </div>
+            <div class="courier-sub" id="trackCourierVehicle">Boda Boda (Bajaj Boxer) • Plate: UFA 482B</div>
+          </div>
+          <a href="#" class="courier-call-btn" id="trackCourierCallBtn">Call Courier</a>
+        </div>
+
+        <!-- Details Grid -->
+        <div class="track-details-grid">
+          
+          <div class="track-card">
+            <div class="track-card-head">
+              <span>Pickup Point</span>
+            </div>
+            <div class="track-card-name" id="trackSenderName">Sarah Namubiru</div>
+            <div class="track-card-phone" id="trackSenderPhone">0775123456</div>
+            <div class="track-card-location" id="trackPickupLocation">Kikuubo Commercial Plaza, Downtown</div>
+            <div class="track-card-notes" id="trackPickupDirections">Ground floor, shop G-14</div>
+          </div>
+
+          <div class="track-card">
+            <div class="track-card-head" style="color: var(--emerald-green);">
+              <span>Delivery Destination</span>
+            </div>
+            <div class="track-card-name" id="trackRecipientName">John Doe</div>
+            <div class="track-card-phone" id="trackRecipientPhone">0702987654</div>
+            <div class="track-card-location" id="trackDeliveryLocation">Ntinda Complex, Ntinda Road</div>
+            <div class="track-card-notes" id="trackDeliveryDirections">Block B, 2nd floor, Tech Hub office</div>
+          </div>
+
+          <div class="track-card">
+            <div class="track-card-head">
+              <span>Package &amp; Payment</span>
+            </div>
+            <div class="track-card-name" id="trackItemDesc">Legal Documents &amp; Stamp</div>
+            <div class="track-card-phone" id="trackItemCategory">DOCUMENT</div>
+            <div class="track-card-location" id="trackDeliveryFee">UGX 12,500 (MTN Mobile Money)</div>
+            <div class="track-card-notes" id="trackItemNotes">Keep documents flat and dry in sleeve</div>
+          </div>
+
+        </div>
+
+        <!-- Timeline of Updates -->
+        <div class="timeline-card">
+          <h3 style="font-size: 1.1rem; margin-bottom: 1.25rem;">Delivery Status Timeline</h3>
+          <ul class="timeline-list" id="trackTimelineList">
+            <!-- Populated by JS -->
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       VIEW 3: CUSTOMER ACCOUNT VIEW
+       =================================================================== -->
+  <section id="view-account" class="container" style="display: none; padding: 3rem 1.25rem;">
+    <div style="max-width: 600px; margin: 0 auto;">
+      
+      <!-- Account Auth (Logged Out State) -->
+      <div id="accountAuthCards">
+        <div class="form-card" style="margin-bottom: 2rem;">
+          <h2 style="font-size: 1.35rem; margin-bottom: 0.35rem;">Customer Login</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+            Log in to view your delivery history and track active requests.
+          </p>
+
+          <form id="customerLoginForm">
+            <div class="form-group">
+              <label for="customerLoginPhone">Email Address or Phone Number</label>
+              <input type="text" id="customerLoginPhone" class="form-input" placeholder="e.g. 0775123456 or user@example.com" required>
+            </div>
+            <div class="form-group">
+              <label for="customerLoginPassword">Password</label>
+              <input type="password" id="customerLoginPassword" class="form-input" placeholder="Enter your password" required>
+            </div>
+            <button type="submit" class="btn-primary btn-block">Log In</button>
+          </form>
+        </div>
+
+        <div class="form-card">
+          <h3 style="font-size: 1.15rem; margin-bottom: 0.35rem;">New to Kola Express? Create Account</h3>
+          <p style="color: var(--text-muted); font-size: 0.825rem; margin-bottom: 1.25rem;">
+            Quick signup with just your name, email address or phone number, and password.
+          </p>
+          <form id="customerRegisterForm">
+            <div class="form-group">
+              <label for="regNameInput">Full Name</label>
+              <input type="text" id="regNameInput" class="form-input" placeholder="e.g. David Mukasa" required>
+            </div>
+            <div class="form-group">
+              <label for="regPhoneInput">Email Address or Phone Number</label>
+              <input type="text" id="regPhoneInput" class="form-input" placeholder="e.g. 0772123456 or david@example.com" required>
+            </div>
+            <div class="form-group">
+              <label for="regPasswordInput">Password</label>
+              <input type="password" id="regPasswordInput" class="form-input" placeholder="Create password" required>
+            </div>
+            <button type="submit" class="btn-secondary btn-block">Create Account</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Account Dashboard (Logged In State) -->
+      <div id="accountDashboard" style="display: none;">
+        <div class="form-card" style="margin-bottom: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h2 id="accountUserName" style="font-size: 1.35rem;">Sarah Namubiru</h2>
+              <div id="accountUserPhone" style="color: var(--kola-blue-dark); font-size: 0.9rem; font-weight: 700;">0775123456</div>
+            </div>
+            <button class="btn-secondary logout-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Log Out</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-size: 1.15rem;">My Delivery Requests</h3>
+          <button class="btn-primary" onclick="window.kolaApp.switchView('home'); document.getElementById('requestSection').scrollIntoView({behavior:'smooth'});" style="font-size: 0.825rem; padding: 0.45rem 0.9rem;">+ New Delivery</button>
+        </div>
+
+        <div id="customerDeliveriesList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       VIEW 4: COURIER OPERATIONAL PORTAL
+       =================================================================== -->
+  <section id="view-courier" class="courier-dashboard" style="display: none;">
+    <div class="container">
+      
+      <!-- Courier Auth Card -->
+      <div id="courierAuthCard" style="max-width: 480px; margin: 0 auto;">
+        <div class="form-card">
+          <div style="text-align: center; margin-bottom: 1.5rem;">
+            <h2>Courier Partner Portal</h2>
+            <p style="color: var(--text-muted); font-size: 0.875rem;">
+              Internal operational tool for Kola Express dispatch riders.
+            </p>
+          </div>
+
+          <form id="courierLoginForm">
+            <div class="form-group">
+              <label for="courierPhoneInput">Courier Phone Number</label>
+              <input type="tel" id="courierPhoneInput" class="form-input" placeholder="e.g. 0772100201" required>
+            </div>
+            <div class="form-group">
+              <label for="courierPasswordInput">Password</label>
+              <input type="password" id="courierPasswordInput" class="form-input" placeholder="Enter your courier password" required>
+            </div>
+            <button type="submit" class="btn-primary btn-block">Log In as Courier</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Courier Dashboard Content -->
+      <div id="courierDashboardContent" style="display: none;">
+        <div class="portal-header">
+          <div class="portal-title-group">
+            <h1>Assigned Courier Tasks</h1>
+            <p style="color: var(--text-muted); font-size: 0.875rem;">
+              Rider: <strong id="courierProfileName" style="color: var(--kola-blue-dark);">Musa Ssewankambo</strong> • Status: 🟢 Online
+            </p>
+          </div>
+          <div>
+            <button class="btn-secondary logout-btn" style="padding: 0.45rem 0.9rem; font-size: 0.85rem;">Log Out</button>
+          </div>
+        </div>
+
+        <div class="courier-tasks-grid" id="courierTasksContainer">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+
+  <!-- ===================================================================
+       CASHLESS PAYMENT MODAL (100% CASHLESS MTN & AIRTEL)
+       =================================================================== -->
+  <div class="modal-overlay" id="paymentModal">
+    <div class="modal-content">
+      <button class="modal-close-btn" id="paymentModalClose" aria-label="Close Modal">✕</button>
+      
+      <div id="paymentFormContent">
+        <div style="text-align: center; margin-bottom: 1.25rem;">
+          <div style="font-size: 2.2rem; margin-bottom: 0.25rem;">💳</div>
+          <h2 style="font-size: 1.35rem; margin-bottom: 0.2rem;">Cashless Checkout</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">
+            Delivery ID: <strong id="payDeliveryTracking" style="color: var(--kola-blue-dark);">KOLA-20261005-000123</strong>
+          </p>
+          <div style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: var(--text-main); margin-top: 0.5rem;" id="payAmountDisplay">
+            UGX 10,000
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Select Mobile Money Provider:</label>
+          <div class="payment-method-grid">
+            <label class="pay-card-option">
+              <input type="radio" name="payment_method" value="MTN Mobile Money" id="methodMtn" checked>
+              <div class="pay-method-btn mtn">
+                <span class="pay-logo-badge mtn">MTN MoMo</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">077, 078, 076</span>
+              </div>
+            </label>
+
+            <label class="pay-card-option">
+              <input type="radio" name="payment_method" value="Airtel Money" id="methodAirtel">
+              <div class="pay-method-btn airtel">
+                <span class="pay-logo-badge airtel">Airtel Money</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">070, 075, 074</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="payCustomerPhone">Mobile Money Number</label>
+          <input type="tel" id="payCustomerPhone" class="form-input" placeholder="e.g. 0775123456" required>
+        </div>
+
+        <div class="cashless-notice" style="margin-bottom: 1.5rem;">
+          <span>🔒</span>
+          <span>Payment is verified server-side via direct carrier integration. Delivery request confirms upon payment authorization.</span>
+        </div>
+
+        <button type="button" class="btn-primary btn-block" id="payAmountConfirmBtn">
+          Pay UGX 10,000
+        </button>
+      </div>
+
+      <!-- Interactive STK Push Simulation Box -->
+      <div id="stkSimulationBox" class="stk-simulation-box" style="display: none;">
+        <div class="stk-spinner"></div>
+        <h3 class="stk-title">USSD Push Sent to Your Phone!</h3>
+        <p class="stk-instruction" id="stkMessageText">
+          Please check your phone screen and enter your Mobile Money PIN to approve payment of UGX 10,000 to Kola Express.
+        </p>
+        <div style="font-family: monospace; font-size: 0.85rem; color: var(--kola-blue-dark); font-weight: 700; margin-bottom: 0.75rem;" id="stkRefCode">
+          Ref: MM-261005-99821
+        </div>
+        <div style="font-size: 0.775rem; color: var(--text-dim); margin-bottom: 1rem;" id="stkCountdownTimer">
+          Auto-verifying in 4s...
+        </div>
+
+        <div class="stk-action-row">
+          <button class="btn-primary" id="stkManualVerifyBtn" style="padding: 0.55rem 1rem; font-size: 0.85rem;">
+            <span>✓ I Entered My PIN (Verify Now)</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       FOOTER
+       =================================================================== -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="brand" onclick="window.kolaApp.switchView('home')">
+            <img src="/assets/logo.jpg" alt="Kola Express Logo" class="brand-logo-img">
+            <div class="brand-text">
+              <span class="brand-name">KOLA <span>EXPRESS</span></span>
+              <span class="brand-tagline">Send it. We deliver it.</span>
+            </div>
+          </div>
+          <p>
+            Kampala's fast, modern, 100% cashless digital delivery service. Simple parcel transport for everyone.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="footer-title">Quick Links</h4>
+          <ul class="footer-links">
+            <li><a href="#" onclick="window.kolaApp.switchView('home'); document.getElementById('requestSection').scrollIntoView({behavior:'smooth'});">Request a Delivery</a></li>
+            <li><a href="#" onclick="window.kolaApp.switchView('track');">Track a Delivery</a></li>
+            <li><a href="#" onclick="window.kolaApp.switchView('account');">Customer Account</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-title">Operating Zones</h4>
+          <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;">
+            Operating across Kampala: Central, Nakasero, Kololo, Ntinda, Bugolobi, Makerere, Kamwokya, Luzira, Kansanga, Naalya, Mengo &amp; suburbs.
+          </p>
+          <div style="margin-top: 1rem; font-size: 0.85rem; color: #60a5fa; font-weight: 700;">
+            100% Cashless • MTN MoMo &amp; Airtel Money
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Kola Express. All rights reserved. Kampala, Uganda.</div>
+        <div style="display: flex; gap: 1rem;">
+          <span>Privacy Policy</span>
+          <span>Terms of Delivery</span>
+          <span>Support: 0700-KOLA-EXP</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+    <!-- ===================================================================
+         MOBILE BOTTOM NAVIGATION BAR (Thumb-friendly native app navigation)
+         =================================================================== -->
+    <nav class="mobile-bottom-bar" id="mobileBottomBar" aria-label="Mobile Navigation">
+      <div id="mobileCustomerTabs" class="mobile-tabs-group">
+        <button type="button" class="mobile-tab-btn active" data-view="home" onclick="window.kolaApp.switchView('home');">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span>Home</span>
+        </button>
+
+        <button type="button" class="mobile-tab-btn mobile-tab-highlight" data-view="request" onclick="window.kolaApp.switchView('request');">
+          <div class="mobile-tab-cta-bubble">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+          <span>Send</span>
+        </button>
+
+        <button type="button" class="mobile-tab-btn" data-view="track" onclick="window.kolaApp.switchView('track');">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+          </svg>
+          <span>Track</span>
+        </button>
+
+        <button type="button" class="mobile-tab-btn" data-view="account" onclick="window.kolaApp.switchView('account');">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span>Account</span>
+        </button>
+      </div>
+
+      <div id="mobileCourierTabs" class="mobile-tabs-group" style="display: none;">
+        <button type="button" class="mobile-tab-btn active" data-view="courier" onclick="window.kolaApp.switchView('courier');">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+          </svg>
+          <span>Tasks</span>
+        </button>
+
+        <button type="button" class="mobile-tab-btn" data-view="track" onclick="window.kolaApp.switchView('track');">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+          </svg>
+          <span>Live Map</span>
+        </button>
+
+        <button type="button" class="mobile-tab-btn logout-btn" title="Log Out">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Log Out</span>
+        </button>
+      </div>
+    </nav>
+
+  </div> <!-- End #siteContentWrap -->
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
