@@ -221,9 +221,11 @@
         e.preventDefault();
         try {
           const courierData = {
+            full_name: document.getElementById('newCourierName').value.trim(),
             name: document.getElementById('newCourierName').value.trim(),
             phone: document.getElementById('newCourierPhone').value.trim(),
             vehicle_type: document.getElementById('newCourierVehicle').value,
+            plate_number: document.getElementById('newCourierPlate').value.trim(),
             vehicle_plate: document.getElementById('newCourierPlate').value.trim()
           };
           await adminApi.couriers.create(courierData);
@@ -569,33 +571,41 @@
 
       const isOps = this.currentRole === 'operations_admin' || this.currentRole === 'super_admin';
 
-      tbody.innerHTML = this.couriers.map(c => `
-        <tr>
-          <td style="font-family:var(--font-mono); font-weight:700;">#${c.id}</td>
-          <td>
-            <div style="font-weight:700; color:var(--text-main);">${this.escapeHtml(c.name)}</div>
-          </td>
-          <td style="font-family:var(--font-mono); font-size:0.8rem;">${this.escapeHtml(c.phone)}</td>
-          <td>
-            <div>${this.escapeHtml(c.vehicle_type || 'Motorcycle')}</div>
-            <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">${this.escapeHtml(c.vehicle_plate || '—')}</div>
-          </td>
-          <td>
-            <span class="admin-badge ${c.is_active ? 'success' : 'danger'}">
-              ${c.is_active ? '● Active' : '○ Inactive'}
-            </span>
-          </td>
-          <td style="font-weight:700; text-align:center;">${c.active_orders_count ?? 0}</td>
-          <td style="font-weight:700; text-align:center; color:#34d399;">${c.completed_orders_count ?? 0}</td>
-          <td>
-            ${isOps ? `
-              <button class="btn btn-secondary btn-sm" onclick="window.adminApp.toggleCourierStatus(${c.id})">
-                ${c.is_active ? 'Deactivate' : 'Activate'}
-              </button>
-            ` : '<span style="color:var(--text-dim);">Read-only</span>'}
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = this.couriers.map(c => {
+        const name = c.full_name || c.name || 'Unnamed Courier';
+        const plate = c.plate_number || c.vehicle_plate || '—';
+        const isActive = c.status === 'active' || c.is_active === true || c.is_active === 1;
+        const activeTasks = c.active_tasks ?? c.active_orders_count ?? 0;
+        const completedDeliveries = c.completed_deliveries ?? c.completed_orders_count ?? c.total_trips ?? 0;
+
+        return `
+          <tr>
+            <td style="font-family:var(--font-mono); font-weight:700;">#${c.id}</td>
+            <td>
+              <div style="font-weight:700; color:var(--text-main);">${this.escapeHtml(name)}</div>
+            </td>
+            <td style="font-family:var(--font-mono); font-size:0.8rem;">${this.escapeHtml(c.phone || '')}</td>
+            <td>
+              <div>${this.escapeHtml(c.vehicle_type || 'Motorcycle')}</div>
+              <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">${this.escapeHtml(plate)}</div>
+            </td>
+            <td>
+              <span class="admin-badge ${isActive ? 'success' : 'danger'}">
+                ${isActive ? '● Active' : '○ Offline / Inactive'}
+              </span>
+            </td>
+            <td style="font-weight:700; text-align:center;">${activeTasks}</td>
+            <td style="font-weight:700; text-align:center; color:#34d399;">${completedDeliveries}</td>
+            <td>
+              ${isOps ? `
+                <button class="btn ${isActive ? 'btn-secondary' : 'btn-primary'} btn-sm" onclick="window.adminApp.toggleCourierStatus(${c.id})">
+                  ${isActive ? 'Deactivate' : 'Activate'}
+                </button>
+              ` : '<span style="color:var(--text-dim);">Read-only</span>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     async toggleCourierStatus(courierId) {
@@ -1034,12 +1044,12 @@
 
       try {
         const couriers = await adminApi.couriers.list();
-        const active = (couriers || []).filter(c => c.is_active);
+        const active = (couriers || []).filter(c => c.status === 'active' || c.is_active === true || c.is_active === 1);
         if (active.length === 0) {
           select.innerHTML = '<option value="">No active couriers found. Please register or activate one.</option>';
         } else {
           select.innerHTML = active.map(c => `
-            <option value="${c.id}">${this.escapeHtml(c.name)} (${this.escapeHtml(c.phone)}) — ${c.active_orders_count || 0} active orders</option>
+            <option value="${c.id}">${this.escapeHtml(c.full_name || c.name)} (${this.escapeHtml(c.phone)}) — ${c.active_tasks || c.active_orders_count || 0} active tasks</option>
           `).join('');
         }
         this.openModal('modalAssignCourier');

@@ -160,6 +160,16 @@ const adminApi = {
       return await adminRequest(`/admin/couriers/${courierId}/toggle`, {
         method: 'POST'
       });
+    },
+    async activate(courierId) {
+      return await adminRequest(`/admin/couriers/${courierId}/activate`, {
+        method: 'POST'
+      });
+    },
+    async deactivate(courierId) {
+      return await adminRequest(`/admin/couriers/${courierId}/deactivate`, {
+        method: 'POST'
+      });
     }
   },
 

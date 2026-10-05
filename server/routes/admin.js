@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { db } = require('../db');
 const { getActivePricingRules, updatePricingRules } = require('../pricing');
+const { sanitizeAndValidateUgandaPhone } = require('../paymentGateway');
 const {
   authenticateToken,
   requireAdmin,
@@ -540,17 +541,67 @@ router.post('/deliveries/:id/correct-handover', requireOpsOrSuperAdmin, (req, re
   }
 });
 
+// Helper to set courier active/offline status and sync with user account
+function setCourierStatus(courierId, shouldBeActive, adminUser) {
+  const courier = db.prepare('SELECT * FROM couriers WHERE id = ?').get(courierId);
+  if (!courier) {
+    throw new Error('Courier not found');
+  }
+
+  const newStatus = shouldBeActive ? 'active' : 'offline';
+  const isActiveInt = shouldBeActive ? 1 : 0;
+
+  const toggleTxn = db.transaction(() => {
+    db.prepare('UPDATE couriers SET status = ? WHERE id = ?').run(newStatus, courierId);
+    if (courier.user_id) {
+      db.prepare('UPDATE users SET is_active = ? WHERE id = ?').run(isActiveInt, courier.user_id);
+    } else {
+      db.prepare('UPDATE users SET is_active = ? WHERE phone = ?').run(isActiveInt, courier.phone);
+    }
+    logAdminAction(
+      adminUser,
+      shouldBeActive ? 'ACTIVATE_COURIER' : 'DEACTIVATE_COURIER',
+      'courier',
+      courierId,
+      `Status of courier ${courier.full_name} (${courier.phone}) set to ${newStatus}`
+    );
+  });
+
+  toggleTxn();
+
+  return {
+    courierId,
+    full_name: courier.full_name,
+    name: courier.full_name,
+    status: newStatus,
+    is_active: shouldBeActive,
+    message: `Courier ${courier.full_name} is now ${shouldBeActive ? 'Active' : 'Offline / Inactive'}`
+  };
+}
+
 // 9. Courier Fleet Management
 router.get('/couriers', (req, res) => {
   try {
     const couriers = db.prepare(`
       SELECT c.*, 
+        c.full_name as name,
+        c.plate_number as vehicle_plate,
+        (CASE WHEN c.status = 'active' THEN 1 ELSE 0 END) as is_active,
         (SELECT COUNT(*) FROM deliveries WHERE courier_id = c.id AND status IN ('Courier Assigned', 'Courier En Route to Pickup', 'Awaiting Sender Confirmation', 'Package Picked Up', 'Item Picked Up', 'In Transit', 'Near Destination')) as active_tasks,
-        (SELECT COUNT(*) FROM deliveries WHERE courier_id = c.id AND status = 'Delivered') as completed_deliveries
+        (SELECT COUNT(*) FROM deliveries WHERE courier_id = c.id AND status IN ('Courier Assigned', 'Courier En Route to Pickup', 'Awaiting Sender Confirmation', 'Package Picked Up', 'Item Picked Up', 'In Transit', 'Near Destination')) as active_orders_count,
+        (SELECT COUNT(*) FROM deliveries WHERE courier_id = c.id AND status = 'Delivered') as completed_deliveries,
+        (SELECT COUNT(*) FROM deliveries WHERE courier_id = c.id AND status = 'Delivered') as completed_orders_count
       FROM couriers c
       ORDER BY c.status = 'active' DESC, c.rating DESC
     `).all();
-    res.json(couriers);
+
+    // Map boolean is_active for frontend compatibility
+    const mapped = couriers.map(c => ({
+      ...c,
+      is_active: Boolean(c.is_active)
+    }));
+
+    res.json(mapped);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -558,46 +609,73 @@ router.get('/couriers', (req, res) => {
 
 router.post('/couriers', requireOpsOrSuperAdmin, (req, res) => {
   try {
-    const { full_name, phone, vehicle_type, plate_number, password } = req.body;
+    const fullName = (req.body.full_name || req.body.name || '').trim();
+    const rawPhone = (req.body.phone || '').trim();
+    const vehicleType = (req.body.vehicle_type || 'Boda Boda (Motorcycle)').trim();
+    const plateNumber = (req.body.plate_number || req.body.vehicle_plate || '').trim();
+    const password = req.body.password;
 
-    if (!full_name || !phone || !plate_number) {
-      return res.status(400).json({ error: 'Full name, phone, and plate number are required' });
+    if (!fullName || !rawPhone || !plateNumber) {
+      return res.status(400).json({ error: 'Full name, phone number, and vehicle plate number are required.' });
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone);
+    // Format and sanitize Uganda phone number
+    const phoneCheck = sanitizeAndValidateUgandaPhone(rawPhone);
+    const phone = phoneCheck.valid ? phoneCheck.formattedPhone : rawPhone;
+
+    // Check if phone is already registered as a courier
+    const existingCourier = db.prepare('SELECT id, full_name FROM couriers WHERE phone = ?').get(phone);
+    if (existingCourier) {
+      return res.status(400).json({ error: `Courier with phone ${phone} is already registered (${existingCourier.full_name}).` });
+    }
+
+    const existingUser = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone);
     let userId;
 
-    if (existing) {
-      userId = existing.id;
+    if (existingUser) {
+      userId = existingUser.id;
+      db.prepare("UPDATE users SET role = 'courier', is_active = 1 WHERE id = ?").run(userId);
     } else {
       const pass = password ? bcrypt.hashSync(password, 10) : bcrypt.hashSync('courier123', 10);
       const userRes = db.prepare(`
-        INSERT INTO users (full_name, phone, password_hash, role)
-        VALUES (?, ?, ?, 'courier')
-      `).run(full_name.trim(), phone.trim(), pass);
+        INSERT INTO users (full_name, phone, password_hash, role, is_active)
+        VALUES (?, ?, ?, 'courier', 1)
+      `).run(fullName, phone, pass);
       userId = userRes.lastInsertRowid;
     }
 
     const courierRes = db.prepare(`
       INSERT INTO couriers (user_id, full_name, phone, vehicle_type, plate_number, status)
       VALUES (?, ?, ?, ?, ?, 'active')
-    `).run(userId, full_name.trim(), phone.trim(), vehicle_type || 'Boda Boda (Motorcycle)', plate_number.trim());
+    `).run(userId, fullName, phone, vehicleType, plateNumber);
+
+    const courierId = courierRes.lastInsertRowid;
 
     logAdminAction(
       req.user,
       'ADD_COURIER',
       'courier',
-      courierRes.lastInsertRowid,
-      `Registered courier ${full_name} (${plate_number})`
+      courierId,
+      `Registered courier ${fullName} (${plateNumber}, Phone: ${phone})`
     );
 
-    const courier = db.prepare('SELECT * FROM couriers WHERE id = ?').get(courierRes.lastInsertRowid);
-    res.status(201).json({ message: 'Courier added successfully', courier });
+    const courier = db.prepare('SELECT * FROM couriers WHERE id = ?').get(courierId);
+    res.status(201).json({
+      message: 'Courier registered successfully',
+      courier: {
+        ...courier,
+        name: courier.full_name,
+        vehicle_plate: courier.plate_number,
+        is_active: true
+      }
+    });
   } catch (err) {
+    console.error('Add courier error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// Toggle status (Active <-> Offline)
 router.post('/couriers/:id/toggle', requireOpsOrSuperAdmin, (req, res) => {
   try {
     const courierId = Number(req.params.id);
@@ -606,18 +684,31 @@ router.post('/couriers/:id/toggle', requireOpsOrSuperAdmin, (req, res) => {
       return res.status(404).json({ error: 'Courier not found' });
     }
 
-    const newStatus = courier.status === 'active' ? 'offline' : 'active';
-    db.prepare('UPDATE couriers SET status = ? WHERE id = ?').run(newStatus, courierId);
+    const shouldBeActive = courier.status !== 'active';
+    const result = setCourierStatus(courierId, shouldBeActive, req.user);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    logAdminAction(
-      req.user,
-      'TOGGLE_COURIER_STATUS',
-      'courier',
-      courier.full_name,
-      `Status of courier ${courier.full_name} changed to ${newStatus}`
-    );
+// Explicit Activate endpoint
+router.post('/couriers/:id/activate', requireOpsOrSuperAdmin, (req, res) => {
+  try {
+    const courierId = Number(req.params.id);
+    const result = setCourierStatus(courierId, true, req.user);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    res.json({ message: `Courier is now ${newStatus}`, status: newStatus });
+// Explicit Deactivate endpoint
+router.post('/couriers/:id/deactivate', requireOpsOrSuperAdmin, (req, res) => {
+  try {
+    const courierId = Number(req.params.id);
+    const result = setCourierStatus(courierId, false, req.user);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
