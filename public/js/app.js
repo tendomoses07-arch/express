@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const routeTypeEl = document.getElementById('quoteRouteType');
     if (routeTypeEl) {
-      routeTypeEl.textContent = quote.route_type || 'Uganda Road Network';
+      routeTypeEl.textContent = quote.route_type || 'Central Region Road Corridor';
     }
 
     const baseEl = document.getElementById('quoteBaseFee');

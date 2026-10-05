@@ -39,6 +39,23 @@ const UGANDA_LOCATIONS = {
   'kireka': { name: 'Kireka', lat: 0.3480, lng: 32.6490, region: 'Central' },
   'nateete': { name: 'Nateete', lat: 0.2980, lng: 32.5320, region: 'Central' },
   'kawempe': { name: 'Kawempe', lat: 0.3630, lng: 32.5570, region: 'Central' },
+  'bukoto': { name: 'Bukoto', lat: 0.3520, lng: 32.5990, region: 'Central' },
+  'naguru': { name: 'Naguru Hill', lat: 0.3390, lng: 32.6070, region: 'Central' },
+  'munyonyo': { name: 'Munyonyo / Speke Resort', lat: 0.2380, lng: 32.6180, region: 'Central' },
+  'najjanankumbi': { name: 'Najjanankumbi / Entebbe Road', lat: 0.2800, lng: 32.5650, region: 'Central' },
+  'lubowa': { name: 'Lubowa / Quality Mall', lat: 0.2450, lng: 32.5600, region: 'Central' },
+  'kajjansi': { name: 'Kajjansi Town / Entebbe Road', lat: 0.2150, lng: 32.5350, region: 'Central' },
+  'seguku': { name: 'Seguku / Entebbe Road', lat: 0.2500, lng: 32.5530, region: 'Central' },
+  'bunamwaya': { name: 'Bunamwaya', lat: 0.2650, lng: 32.5450, region: 'Central' },
+  'zana': { name: 'Zana / Entebbe Road', lat: 0.2680, lng: 32.5580, region: 'Central' },
+  'kyengera': { name: 'Kyengera / Masaka Road', lat: 0.2880, lng: 32.5050, region: 'Central' },
+  'nsangi': { name: 'Nsangi Town / Masaka Road', lat: 0.2650, lng: 32.4600, region: 'Central' },
+  'buloba': { name: 'Buloba / Mityana Road', lat: 0.3290, lng: 32.4480, region: 'Central' },
+  'matugga': { name: 'Matugga Town / Bombo Road', lat: 0.4680, lng: 32.5180, region: 'Central' },
+  'busega': { name: 'Busega Roundabout / Northern Bypass', lat: 0.3040, lng: 32.5150, region: 'Central' },
+  'kalagi': { name: 'Kalagi Town / Mukono-Kayunga Road', lat: 0.5050, lng: 32.7950, region: 'Central' },
+  'kalangala': { name: 'Kalangala (Ssese Islands)', lat: -0.3089, lng: 32.2250, region: 'Central' },
+  'buvuma': { name: 'Buvuma Island', lat: 0.2500, lng: 33.2500, region: 'Central' },
 
   // =========================================================================
   // CENTRAL REGION — Districts & Greater Central Corridor
@@ -194,14 +211,14 @@ function findClosestUgandaLocation(text) {
 }
 
 /**
- * Calculates accurate road distance (km) between ANY two locations in Uganda.
+ * Calculates accurate road distance (km) on roads based on Central Region of Uganda.
  * Uses Haversine great-circle formula combined with calibrated road network factors
- * matching the Uganda National Roads Authority (UNRA) highway & urban corridors:
- * - Long-distance National Highways (A104, A109, etc. > 60 km): 1.25x
- * - Inter-district Regional Roads (20 - 60 km): 1.30x
- * - Local Urban & Metropolitan Streets (<= 20 km): 1.38x
+ * matching the Central Region road corridors (UNRA Central Network):
+ * - Greater Kampala Metropolitan & Urban Streets (<= 15 km): 1.38x
+ * - Central Regional Arterials (Entebbe Expressway, Jinja Rd, Masaka Rd, 15 - 50 km): 1.32x
+ * - Greater Central Highways (> 50 km, e.g. Masaka, Luweero, Mityana, Mubende): 1.28x
  */
-function calculateUgandaDistance(loc1Str, loc2Str) {
+function calculateCentralUgandaDistance(loc1Str, loc2Str) {
   const p1 = findClosestUgandaLocation(loc1Str);
   const p2 = findClosestUgandaLocation(loc2Str);
 
@@ -221,20 +238,19 @@ function calculateUgandaDistance(loc1Str, loc2Str) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const straightDistance = R * c;
 
-    // Apply Uganda Road Network Tortuosity
+    // Apply Central Region road network factor
     let roadFactor = 1.38; // Default urban grid
-    if (straightDistance > 60) {
-      roadFactor = 1.25; // Highway UNRA corridor factor
-    } else if (straightDistance > 20) {
-      roadFactor = 1.30; // Inter-district regional factor
+    if (straightDistance > 50) {
+      roadFactor = 1.28; // Major highway corridor
+    } else if (straightDistance > 15) {
+      roadFactor = 1.32; // Inter-district regional arterial
     }
 
     const roadDistance = straightDistance * roadFactor;
     return Math.max(2.0, Math.round(roadDistance * 10) / 10);
   }
 
-  // Fallback for custom unmapped addresses:
-  // Check if string contains hints of other major districts
+  // Fallback for custom unmapped addresses in Central Region
   const clean1 = (loc1Str || '').toLowerCase();
   const clean2 = (loc2Str || '').toLowerCase();
 
@@ -243,12 +259,13 @@ function calculateUgandaDistance(loc1Str, loc2Str) {
     return 6.5;
   }
 
-  // Cross-district default estimate across Uganda
-  return 35.0;
+  // Cross-district default estimate in Central Region
+  return 18.0;
 }
 
-// Backward-compatible alias for Kampala functions
-const calculateKampalaDistance = calculateUgandaDistance;
+// Backward-compatible aliases
+const calculateUgandaDistance = calculateCentralUgandaDistance;
+const calculateKampalaDistance = calculateCentralUgandaDistance;
 
 /**
  * Fetch active pricing rules from database
@@ -286,41 +303,27 @@ function getActivePricingRules() {
 }
 
 /**
- * DYNAMIC UGANDA NATIONWIDE RATE CALCULATION ENGINE:
- * Calculates delivery quote dynamically based on road distance (km) across all of Uganda.
- * Package size/category surcharges are eliminated (0 UGX) so rates are purely and
- * transparently driven by actual road distance.
+ * DYNAMIC CENTRAL REGION ROAD RATE CALCULATION ENGINE:
+ * Calculates delivery quote dynamically on roads based on Central Region of Uganda.
+ * Dynamic road rate is 800 UGX per 1 km (e.g. 5 km = 4,000 UGX, 10 km = 8,000 UGX, 46.2 km = 36,960 UGX).
+ * Package size/category surcharge is zeroed (0 UGX) so rates are purely and transparently
+ * driven by dynamic road distance on Central Region roads.
  */
 function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel', is_urgent = false, custom_km = null }) {
   const rules = getActivePricingRules();
 
-  // Calculate nationwide road distance across Uganda
+  // Calculate road distance across Central Region of Uganda
   const distance_km = custom_km != null && !isNaN(parseFloat(custom_km))
     ? Math.max(1.0, parseFloat(custom_km))
-    : calculateUgandaDistance(pickup, destination);
+    : calculateCentralUgandaDistance(pickup, destination);
 
   const base_fee = rules.base_fee;
-  const per_km = rules.per_km_rate || 800;
+  const per_km = rules.per_km_rate || 800; // 800 UGX per 1 km
 
-  // Dynamic distance-tiered calculation across Uganda's road network:
-  // - Local urban (0 - 20 km): standard rate per km
-  // - Regional inter-district (20 - 80 km): 85% rate per km
-  // - Nationwide long-distance highway (80+ km): 70% rate per km
-  let distance_fee = 0;
-  if (distance_km <= 20) {
-    distance_fee = Math.round(distance_km * per_km);
-  } else if (distance_km <= 80) {
-    const localPart = 20 * per_km;
-    const regionalPart = (distance_km - 20) * (per_km * 0.85);
-    distance_fee = Math.round(localPart + regionalPart);
-  } else {
-    const localPart = 20 * per_km;
-    const regionalPart = 60 * (per_km * 0.85);
-    const highwayPart = (distance_km - 80) * (per_km * 0.70);
-    distance_fee = Math.round(localPart + regionalPart + highwayPart);
-  }
+  // Dynamic road distance fee: exactly 800 UGX per 1 km
+  const distance_fee = Math.round(distance_km * per_km);
 
-  // Package size surcharge is 0 (rates are purely distance-driven across Uganda)
+  // Package size surcharge is 0 (rates are purely distance-driven on Central Region roads)
   const category_fee = 0;
 
   // Urgent express surcharge
@@ -333,23 +336,24 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
   const p1 = findClosestUgandaLocation(pickup);
   const p2 = findClosestUgandaLocation(destination);
 
-  let route_type = 'Local City / Municipality';
-  if (distance_km > 80) {
-    route_type = 'Nationwide Highway Corridor';
-  } else if (distance_km > 20) {
-    route_type = 'Inter-District Regional Route';
+  let route_type = 'Central Metropolitan Route';
+  if (distance_km > 50) {
+    route_type = 'Greater Central Highway Corridor';
+  } else if (distance_km > 15) {
+    route_type = 'Central Inter-District Corridor';
   }
 
   return {
     distance_km,
+    rate_per_km: per_km,
     route_type,
-    coverage: 'All-Uganda Nationwide Coverage',
-    origin: p1 ? p1.name : (pickup || 'Origin in Uganda'),
-    origin_region: p1 ? p1.region : 'Uganda',
-    destination_name: p2 ? p2.name : (destination || 'Destination in Uganda'),
-    destination_region: p2 ? p2.region : 'Uganda',
+    coverage: 'Central Region of Uganda Road Network',
+    origin: p1 ? p1.name : (pickup || 'Origin in Central Uganda'),
+    origin_region: p1 ? p1.region : 'Central',
+    destination_name: p2 ? p2.name : (destination || 'Destination in Central Uganda'),
+    destination_region: p2 ? p2.region : 'Central',
     base_fee,
-    per_km_rate: rules.per_km_rate,
+    per_km_rate: per_km,
     distance_fee,
     category,
     category_fee: 0,
@@ -386,8 +390,10 @@ function updatePricingRules({ base_fee, per_km_rate, min_fee, urgent_surcharge, 
 
 module.exports = {
   UGANDA_LOCATIONS,
-  KAMPALA_LANDMARKS,
+  KAMPALA_LANDMARKS: UGANDA_LOCATIONS,
   findClosestUgandaLocation,
+  findClosestLandmark: findClosestUgandaLocation,
+  calculateCentralUgandaDistance,
   calculateUgandaDistance,
   calculateKampalaDistance,
   getActivePricingRules,

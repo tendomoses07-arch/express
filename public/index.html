@@ -382,18 +382,19 @@
                 </div>
 
                 <div class="form-group">
-                  <label for="pickupLocationInput">Pickup Location / City / Town in Uganda <span class="req">*</span></label>
-                  <input type="text" id="pickupLocationInput" class="form-input" placeholder="e.g. Kampala, Jinja, Mbarara, Gulu, Entebbe, Mbale..." value="Central Kampala" required>
+                  <label for="pickupLocationInput">Pickup Location in Central Region of Uganda <span class="req">*</span></label>
+                  <input type="text" id="pickupLocationInput" class="form-input" placeholder="e.g. Kampala, Entebbe, Mukono, Wakiso, Masaka, Luweero, Mityana..." value="Central Kampala" required>
                   <div class="quick-chips-wrap">
                     <span class="quick-chip-label">Quick select:</span>
                     <button type="button" class="quick-chip pickup-chip" data-location="Central Kampala">Kampala</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Ntinda, Kampala">Ntinda</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Kololo, Kampala">Kololo</button>
                     <button type="button" class="quick-chip pickup-chip" data-location="Entebbe Municipality">Entebbe</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Jinja City">Jinja</button>
                     <button type="button" class="quick-chip pickup-chip" data-location="Mukono Municipality">Mukono</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Wakiso District Headquarters">Wakiso</button>
                     <button type="button" class="quick-chip pickup-chip" data-location="Masaka City">Masaka</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Mbarara City">Mbarara</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Gulu City">Gulu</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Mbale City">Mbale</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Luweero Town">Luweero</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Mityana Municipality">Mityana</button>
                   </div>
                 </div>
 
@@ -426,20 +427,20 @@
                 </div>
 
                 <div class="form-group">
-                  <label for="deliveryLocationInput">Destination Town / City / District in Uganda <span class="req">*</span></label>
-                  <input type="text" id="deliveryLocationInput" class="form-input" placeholder="e.g. Jinja, Mbarara, Gulu, Mbale, Entebbe, Fort Portal, Arua..." value="Jinja City" required>
+                  <label for="deliveryLocationInput">Destination Town / District in Central Uganda <span class="req">*</span></label>
+                  <input type="text" id="deliveryLocationInput" class="form-input" placeholder="e.g. Entebbe, Mukono, Wakiso, Masaka, Luweero, Ntinda, Kololo..." value="Entebbe Municipality" required>
                   <div class="quick-chips-wrap">
                     <span class="quick-chip-label">Quick select:</span>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Jinja City">Jinja</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Mbarara City">Mbarara</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Gulu City">Gulu</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Mbale City">Mbale</button>
                     <button type="button" class="quick-chip delivery-chip" data-location="Entebbe Municipality">Entebbe</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Fort Portal Tourism City">Fort Portal</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Arua City">Arua</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Masaka City">Masaka</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Lira City">Lira</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Mukono Municipality">Mukono</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Wakiso District Headquarters">Wakiso</button>
                     <button type="button" class="quick-chip delivery-chip" data-location="Ntinda, Kampala">Ntinda</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Kololo, Kampala">Kololo</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Masaka City">Masaka</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Luweero Town">Luweero</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Mpigi Town">Mpigi</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Mityana Municipality">Mityana</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Nansana Municipality">Nansana</button>
                   </div>
                 </div>
 
@@ -547,26 +548,26 @@
           <!-- Live Pricing Quote Card (Sticky) -->
           <div class="pricing-quote-card">
             <div class="quote-header">
-              <h3>Nationwide Delivery Quote</h3>
-              <span class="quote-badge">All-Uganda Road Rates</span>
+              <h3>Central Region Delivery Quote</h3>
+              <span class="quote-badge">Central Uganda (800 UGX/km)</span>
             </div>
 
             <ul class="quote-breakdown-list">
               <li class="quote-item">
                 <span>Estimated Road Distance:</span>
-                <strong id="quoteDistance">87.3 km</strong>
+                <strong id="quoteDistance">46.2 km</strong>
               </li>
               <li class="quote-item" id="quoteRouteRow">
                 <span>Route Classification:</span>
-                <strong id="quoteRouteType" style="color:var(--kola-blue-dark); font-size:0.8rem;">Highway Corridor</strong>
+                <strong id="quoteRouteType" style="color:var(--kola-blue-dark); font-size:0.8rem;">Central Inter-District Corridor</strong>
               </li>
               <li class="quote-item">
                 <span>Base Dispatch Fee:</span>
                 <strong id="quoteBaseFee">UGX 4,000</strong>
               </li>
               <li class="quote-item">
-                <span>Dynamic Road Distance Fee:</span>
-                <strong id="quoteDistanceFee">UGX 61,000</strong>
+                <span>Dynamic Road Distance Fee (800 UGX/km):</span>
+                <strong id="quoteDistanceFee">UGX 37,000</strong>
               </li>
               <li class="quote-item" id="quoteCategoryRow" style="display:none;">
                 <span>Package Surcharge:</span>
@@ -580,7 +581,7 @@
 
             <div class="quote-total-box">
               <div class="total-label">Total Delivery Fee:</div>
-              <div class="total-amount" id="quoteTotalFee">65,000<small>UGX</small></div>
+              <div class="total-amount" id="quoteTotalFee">41,000<small>UGX</small></div>
             </div>
 
             <div class="cashless-notice">
@@ -589,7 +590,7 @@
             </div>
 
             <div style="font-size: 0.8rem; color: var(--text-dim); text-align: center; line-height: 1.4;">
-              Rates are calculated dynamically based on road distance all over Uganda as a country. Configured securely by Kola Express.
+              Rates are calculated dynamically on roads based on Central Region of Uganda at 800 UGX per 1 km. Configured securely by Kola Express.
             </div>
           </div>
 
