@@ -170,6 +170,28 @@ const adminApi = {
       return await adminRequest(`/admin/couriers/${courierId}/deactivate`, {
         method: 'POST'
       });
+    },
+    async listAvailable() {
+      return await adminRequest('/admin/couriers/available');
+    }
+  },
+
+  // Operations Admin Dedicated Features
+  operations: {
+    async assignCourier(deliveryIdentifier, courierIdentifier) {
+      return await adminRequest('/admin/operations/assign', {
+        method: 'POST',
+        body: JSON.stringify({
+          delivery_id: deliveryIdentifier,
+          courier_id: courierIdentifier
+        })
+      });
+    },
+    async getUnassignedDeliveries() {
+      return await adminRequest('/admin/operations/unassigned');
+    },
+    async getAvailableCouriers() {
+      return await adminRequest('/admin/couriers/available');
     }
   },
 

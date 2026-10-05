@@ -288,7 +288,45 @@
                   <option value="delivered">Delivered (PIN Confirmed)</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
+            </div>
+
+            <!-- Operations Fast Dispatch Console -->
+            <div id="opsDispatchCard" style="margin: 0 1.5rem 1.25rem 1.5rem; padding: 1.1rem 1.25rem; background: linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(15,23,42,0.7) 100%); border: 1px solid rgba(59,130,246,0.35); border-radius: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                  <span style="font-weight: 800; font-size: 0.95rem; color: #60a5fa; display: flex; align-items: center; gap: 0.4rem;">
+                    <span>⚡</span> Operations Dispatch Console: Assign Delivery to Available Courier
+                  </span>
+                  <span style="font-size: 0.78rem; color: var(--text-muted);">
+                    Select an unassigned order or enter any Delivery ID / Tracking #, then select an available courier to dispatch instantly.
+                  </span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <span class="admin-badge info" id="opsAvailableBadge">Checking couriers...</span>
+                </div>
               </div>
+              <form id="opsFastAssignForm" style="display: grid; grid-template-columns: 1.4fr 1.2fr auto; gap: 0.75rem; align-items: flex-end;">
+                <div>
+                  <label class="form-label" style="font-size: 0.75rem; margin-bottom: 0.25rem;">Select Order or Enter Delivery ID / Tracking #</label>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <select id="opsFastDeliverySelect" class="form-select" style="font-size: 0.82rem; flex: 1;">
+                      <option value="">-- Choose Unassigned / Active Delivery --</option>
+                    </select>
+                    <input type="text" id="opsFastDeliveryCustomId" class="form-input" placeholder="Or enter #ID" style="max-width: 130px; font-size: 0.82rem;">
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label" style="font-size: 0.75rem; margin-bottom: 0.25rem;">Assign To Available Courier</label>
+                  <select id="opsFastCourierSelect" class="form-select" style="font-size: 0.82rem;" required>
+                    <option value="">-- Select Available Courier --</option>
+                  </select>
+                </div>
+                <div>
+                  <button type="submit" class="btn btn-primary" id="opsFastAssignBtn" style="white-space: nowrap; height: 38px; font-size: 0.85rem; font-weight: 700;">
+                    ⚡ Assign Courier
+                  </button>
+                </div>
+              </form>
             </div>
 
             <div class="table-responsive">
@@ -689,22 +727,30 @@
        MODAL 2: ASSIGN COURIER
        =================================================================== -->
   <div class="admin-modal-overlay" id="modalAssignCourier">
-    <div class="admin-modal" style="max-width:480px;">
+    <div class="admin-modal" style="max-width:500px;">
       <div class="admin-modal-header">
-        <h3 style="font-size:1.1rem; font-weight:800;">Dispatch / Assign Courier</h3>
+        <h3 style="font-size:1.1rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
+          <span>⚡</span> Dispatch / Assign Courier
+        </h3>
         <button class="modal-close-btn" onclick="window.adminApp.closeModal('modalAssignCourier')">&times;</button>
       </div>
       <form id="assignCourierForm">
-        <input type="hidden" id="assignDeliveryId">
         <div class="form-group">
-          <label class="form-label">Select Available Courier</label>
+          <label class="form-label">Delivery Order to Assign</label>
+          <div id="assignDeliveryCard" style="display:none; padding:0.75rem 1rem; background:rgba(30,41,59,0.7); border:1px solid rgba(59,130,246,0.3); border-radius:8px; margin-bottom:0.6rem; font-size:0.85rem;">
+            <!-- Populated dynamically -->
+          </div>
+          <input type="text" id="assignDeliveryId" class="form-input" placeholder="Enter Delivery ID or Tracking # (e.g. 1 or KOLA-...)" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Select Available Active Courier</label>
           <select id="assignCourierSelect" class="form-select" required>
             <option value="">Select an active courier...</option>
           </select>
         </div>
         <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
           <button type="button" class="btn btn-secondary" onclick="window.adminApp.closeModal('modalAssignCourier')">Cancel</button>
-          <button type="submit" class="btn btn-primary">Confirm Assignment</button>
+          <button type="submit" class="btn btn-primary" id="confirmAssignBtn">⚡ Confirm Dispatch</button>
         </div>
       </form>
     </div>

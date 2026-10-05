@@ -150,22 +150,178 @@ router.get('/events', (req, res) => {
   }
 });
 
+// Helper to map and project delivery fields for administrative interface
+function mapDeliveryForAdmin(d) {
+  if (!d) return null;
+  let delivery_status = 'pending';
+  const rawStatus = (d.status || '').toLowerCase().trim();
+
+  if (rawStatus === 'awaiting payment') delivery_status = 'pending';
+  else if (rawStatus === 'payment confirmed') delivery_status = 'paid';
+  else if (rawStatus === 'courier assigned') delivery_status = 'courier_assigned';
+  else if (rawStatus === 'courier en route to pickup') delivery_status = 'courier_en_route';
+  else if (rawStatus === 'awaiting sender confirmation') delivery_status = 'courier_arrived';
+  else if (rawStatus === 'package picked up' || rawStatus === 'item picked up') delivery_status = 'picked_up';
+  else if (rawStatus === 'in transit' || rawStatus === 'near destination') delivery_status = 'in_transit';
+  else if (rawStatus === 'delivered') delivery_status = 'delivered';
+  else if (rawStatus === 'cancelled') delivery_status = 'cancelled';
+  else delivery_status = rawStatus || 'pending';
+
+  return {
+    ...d,
+    delivery_status,
+    customer_name: d.customer_name || d.sender_name || 'Guest Sender',
+    customer_phone: d.customer_phone || d.sender_phone || '',
+    pickup_location: d.pickup_location,
+    dropoff_location: d.dropoff_location || d.delivery_location,
+    package_description: d.package_description || d.item_description,
+    package_weight: d.package_weight || d.distance_km || 1,
+    price: d.price != null ? d.price : d.delivery_fee,
+    payment_status: d.payment_status || (d.status === 'Awaiting Payment' ? 'pending' : 'paid'),
+    can_assign: !['Delivered', 'Cancelled'].includes(d.status)
+  };
+}
+
+// Unified Operations Courier Assignment Core Engine
+function performCourierAssignment({ deliveryIdentifier, courierIdentifier, adminUser }) {
+  if (!deliveryIdentifier && deliveryIdentifier !== 0) {
+    throw new Error('Delivery ID or Tracking Number is required');
+  }
+  if (!courierIdentifier && courierIdentifier !== 0) {
+    throw new Error('Courier ID or phone is required');
+  }
+
+  // 1. Locate delivery by Numeric ID or Tracking Number
+  const trimmedDelivery = String(deliveryIdentifier).trim().replace(/^#/, '');
+  let delivery = null;
+  if (/^\d+$/.test(trimmedDelivery)) {
+    delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(Number(trimmedDelivery));
+  }
+  if (!delivery) {
+    delivery = db.prepare('SELECT * FROM deliveries WHERE tracking_number = ?').get(trimmedDelivery);
+  }
+  if (!delivery) {
+    throw new Error(`Delivery not found for reference: "${deliveryIdentifier}"`);
+  }
+
+  // 2. Validate delivery state
+  if (delivery.status === 'Delivered') {
+    throw new Error('Cannot assign courier: This delivery has already been fulfilled and delivered.');
+  }
+  if (delivery.status === 'Cancelled') {
+    throw new Error('Cannot assign courier: This delivery has been cancelled.');
+  }
+
+  // 3. Locate courier by ID or Phone
+  const trimmedCourier = String(courierIdentifier).trim();
+  let courier = null;
+  if (/^\d+$/.test(trimmedCourier)) {
+    courier = db.prepare('SELECT * FROM couriers WHERE id = ?').get(Number(trimmedCourier));
+  }
+  if (!courier) {
+    courier = db.prepare('SELECT * FROM couriers WHERE phone = ?').get(trimmedCourier);
+  }
+  if (!courier) {
+    throw new Error(`Courier not found for identifier: "${courierIdentifier}"`);
+  }
+
+  // 4. Validate courier availability
+  if (courier.status !== 'active') {
+    throw new Error(`Courier ${courier.full_name} is currently ${courier.status || 'offline'}. Only active couriers can receive dispatches.`);
+  }
+
+  const previousCourierId = delivery.courier_id;
+  const isReassign = !!previousCourierId && previousCourierId !== courier.id;
+
+  // 5. Execute assignment in a database transaction
+  const assignTxn = db.transaction(() => {
+    db.prepare(`
+      UPDATE deliveries
+      SET courier_id = ?, status = 'Courier Assigned', courier_assigned_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(courier.id, delivery.id);
+
+    const noteText = isReassign
+      ? `Reassigned to courier ${courier.full_name} (${courier.plate_number}, ${courier.phone}) by Operations Admin ${adminUser.full_name || 'Admin'}`
+      : `Assigned to courier ${courier.full_name} (${courier.plate_number}, ${courier.phone}) by Operations Admin ${adminUser.full_name || 'Admin'}`;
+
+    db.prepare(`
+      INSERT INTO delivery_status_history (delivery_id, status, note, updated_by)
+      VALUES (?, 'Courier Assigned', ?, ?)
+    `).run(delivery.id, noteText, adminUser.full_name || 'Admin');
+
+    logAdminAction(
+      adminUser,
+      isReassign ? 'REASSIGN_COURIER' : 'ASSIGN_COURIER',
+      'delivery',
+      delivery.tracking_number,
+      `${isReassign ? 'Reassigned' : 'Assigned'} courier ${courier.full_name} (${courier.plate_number}) to delivery ${delivery.tracking_number}`
+    );
+  });
+
+  assignTxn();
+
+  const updated = db.prepare(`
+    SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
+    FROM deliveries d
+    LEFT JOIN couriers c ON d.courier_id = c.id
+    WHERE d.id = ?
+  `).get(delivery.id);
+
+  return {
+    success: true,
+    message: isReassign
+      ? `Delivery #${delivery.id} (${delivery.tracking_number}) successfully reassigned to ${courier.full_name}.`
+      : `Delivery #${delivery.id} (${delivery.tracking_number}) successfully assigned to ${courier.full_name}.`,
+    delivery: mapDeliveryForAdmin(updated),
+    courier: {
+      id: courier.id,
+      name: courier.full_name,
+      full_name: courier.full_name,
+      phone: courier.phone,
+      vehicle_plate: courier.plate_number,
+      plate_number: courier.plate_number,
+      status: courier.status,
+      is_active: true
+    }
+  };
+}
+
 // 3. Deliveries Management
 router.get('/deliveries', (req, res) => {
   try {
     const { status, search } = req.query;
 
     let query = `
-      SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
+      SELECT d.*, 
+        c.full_name as courier_name, 
+        c.phone as courier_phone, 
+        c.plate_number as courier_plate,
+        p.status as payment_status
       FROM deliveries d
       LEFT JOIN couriers c ON d.courier_id = c.id
+      LEFT JOIN payments p ON p.delivery_id = d.id
       WHERE 1=1
     `;
     const params = [];
 
     if (status && status !== 'all') {
-      query += ' AND d.status = ?';
-      params.push(status);
+      const statusMap = {
+        'pending': ['Awaiting Payment', 'pending'],
+        'paid': ['Payment Confirmed', 'paid'],
+        'courier_assigned': ['Courier Assigned', 'courier_assigned'],
+        'courier_en_route': ['Courier En Route to Pickup', 'courier_en_route'],
+        'courier_arrived': ['Awaiting Sender Confirmation', 'courier_arrived'],
+        'picked_up': ['Package Picked Up', 'Item Picked Up', 'picked_up'],
+        'in_transit': ['In Transit', 'Near Destination', 'in_transit'],
+        'delivered': ['Delivered', 'delivered'],
+        'cancelled': ['Cancelled', 'cancelled']
+      };
+
+      const matchedStatuses = statusMap[status] || [status];
+      const placeholders = matchedStatuses.map(() => '?').join(',');
+      query += ` AND d.status IN (${placeholders})`;
+      params.push(...matchedStatuses);
     }
 
     if (search && search.trim()) {
@@ -185,7 +341,7 @@ router.get('/deliveries', (req, res) => {
     query += ' ORDER BY d.id DESC LIMIT 150';
 
     const deliveries = db.prepare(query).all(...params);
-    res.json(deliveries);
+    res.json(deliveries.map(mapDeliveryForAdmin));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -221,7 +377,7 @@ router.get('/deliveries/:id', (req, res) => {
 
     res.json({
       ...delivery,
-      delivery,
+      delivery: mapDeliveryForAdmin(delivery),
       history,
       payment: payment || null,
       handover: handover || null
@@ -231,66 +387,94 @@ router.get('/deliveries/:id', (req, res) => {
   }
 });
 
-// 4. Assign / Reassign Courier (Operations or Super Admin)
+// 4. Operations Admin Courier Dispatch Feature
+// 4a. Assign by delivery URL parameter
 router.post('/deliveries/:id/assign', requireOpsOrSuperAdmin, (req, res) => {
   try {
-    const deliveryId = Number(req.params.id);
-    const { courier_id } = req.body;
-
-    if (!courier_id) {
-      return res.status(400).json({ error: 'courier_id is required' });
-    }
-
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
-    if (!delivery) {
-      return res.status(404).json({ error: 'Delivery not found' });
-    }
-
-    const courier = db.prepare('SELECT * FROM couriers WHERE id = ?').get(courier_id);
-    if (!courier) {
-      return res.status(404).json({ error: 'Courier not found' });
-    }
-
-    const previousCourierId = delivery.courier_id;
-    const isReassign = !!previousCourierId && previousCourierId !== courier_id;
-
-    const assignTxn = db.transaction(() => {
-      db.prepare(`
-        UPDATE deliveries
-        SET courier_id = ?, status = 'Courier Assigned', courier_assigned_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(courier_id, deliveryId);
-
-      const noteText = isReassign
-        ? `Reassigned to courier ${courier.full_name} (${courier.plate_number}, ${courier.phone}) by ${req.user.full_name || 'Admin'}`
-        : `Assigned to courier ${courier.full_name} (${courier.plate_number}, ${courier.phone}) by ${req.user.full_name || 'Admin'}`;
-
-      db.prepare(`
-        INSERT INTO delivery_status_history (delivery_id, status, note, updated_by)
-        VALUES (?, 'Courier Assigned', ?, ?)
-      `).run(deliveryId, noteText, req.user.full_name || 'Admin');
-
-      logAdminAction(
-        req.user,
-        isReassign ? 'REASSIGN_COURIER' : 'ASSIGN_COURIER',
-        'delivery',
-        delivery.tracking_number,
-        `${isReassign ? 'Reassigned' : 'Assigned'} courier ${courier.full_name} (${courier.plate_number}) to ${delivery.tracking_number}`
-      );
+    const deliveryIdentifier = req.params.id;
+    const courierIdentifier = req.body.courier_id || req.body.courierId;
+    const result = performCourierAssignment({
+      deliveryIdentifier,
+      courierIdentifier,
+      adminUser: req.user
     });
+    res.json(result);
+  } catch (err) {
+    console.error('Assign courier error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
 
-    assignTxn();
+// 4b. Assign by POST body in deliveries namespace
+router.post('/deliveries/assign', requireOpsOrSuperAdmin, (req, res) => {
+  try {
+    const deliveryIdentifier = req.body.delivery_id || req.body.deliveryId || req.body.tracking_number;
+    const courierIdentifier = req.body.courier_id || req.body.courierId;
+    const result = performCourierAssignment({
+      deliveryIdentifier,
+      courierIdentifier,
+      adminUser: req.user
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Operations assign error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
 
-    const updated = db.prepare(`
+// 4c. Dedicated Operations Admin Section Dispatch Endpoint
+router.post('/operations/assign', requireOpsOrSuperAdmin, (req, res) => {
+  try {
+    const deliveryIdentifier = req.body.delivery_id || req.body.deliveryId || req.body.tracking_number;
+    const courierIdentifier = req.body.courier_id || req.body.courierId;
+    const result = performCourierAssignment({
+      deliveryIdentifier,
+      courierIdentifier,
+      adminUser: req.user
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Operations assign error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 4d. Unassigned and Pending Dispatch Queue for Operations Admin
+router.get('/operations/unassigned', requireOpsOrSuperAdmin, (req, res) => {
+  try {
+    const unassigned = db.prepare(`
       SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
       FROM deliveries d
       LEFT JOIN couriers c ON d.courier_id = c.id
-      WHERE d.id = ?
-    `).get(deliveryId);
-
-    res.json({ message: isReassign ? 'Courier reassigned successfully' : 'Courier assigned successfully', delivery: updated });
+      WHERE (d.courier_id IS NULL OR d.status IN ('Awaiting Payment', 'Payment Confirmed', 'Courier Assigned'))
+        AND d.status NOT IN ('Delivered', 'Cancelled')
+      ORDER BY d.id DESC
+      LIMIT 100
+    `).all();
+    res.json(unassigned.map(mapDeliveryForAdmin));
   } catch (err) {
-    console.error('Assign courier error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4e. Available Active Couriers for Dispatch Dropdowns
+router.get('/couriers/available', (req, res) => {
+  try {
+    const couriers = db.prepare(`
+      SELECT c.*, 
+        c.full_name as name,
+        c.plate_number as vehicle_plate,
+        1 as is_active,
+        (SELECT COUNT(*) FROM deliveries WHERE courier_id = c.id AND status IN ('Courier Assigned', 'Courier En Route to Pickup', 'Awaiting Sender Confirmation', 'Package Picked Up', 'Item Picked Up', 'In Transit', 'Near Destination')) as active_tasks
+      FROM couriers c
+      WHERE c.status = 'active'
+      ORDER BY active_tasks ASC, c.rating DESC
+    `).all();
+    res.json(couriers.map(c => ({
+      ...c,
+      is_active: true
+    })));
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

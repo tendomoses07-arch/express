@@ -238,21 +238,77 @@
         }
       });
 
-      // Courier Assignment Submit
+      // Operations Fast Dispatch Form Submit
+      document.getElementById('opsFastAssignForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const customId = document.getElementById('opsFastDeliveryCustomId')?.value.trim();
+        const selectId = document.getElementById('opsFastDeliverySelect')?.value;
+        const deliveryId = customId || selectId;
+        const courierId = document.getElementById('opsFastCourierSelect')?.value;
+
+        if (!deliveryId) {
+          this.showToast('Please select a delivery order or enter a Delivery ID / Tracking #', 'error');
+          return;
+        }
+        if (!courierId) {
+          this.showToast('Please select an available courier to assign', 'error');
+          return;
+        }
+
+        const btn = document.getElementById('opsFastAssignBtn');
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '⚡ Assigning...';
+        }
+
+        try {
+          const res = await adminApi.operations.assignCourier(deliveryId, courierId);
+          this.showToast(res.message || 'Delivery successfully assigned to courier!', 'success');
+          if (document.getElementById('opsFastDeliveryCustomId')) {
+            document.getElementById('opsFastDeliveryCustomId').value = '';
+          }
+          await this.loadDeliveries();
+          await this.loadCouriers();
+          await this.loadDashboard();
+        } catch (err) {
+          this.showToast(err.message, 'error');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+          }
+        }
+      });
+
+      // Courier Assignment Modal Submit
       document.getElementById('assignCourierForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const deliveryId = document.getElementById('assignDeliveryId').value;
+        const deliveryId = document.getElementById('assignDeliveryId').value.trim();
         const courierId = document.getElementById('assignCourierSelect').value;
         if (!deliveryId || !courierId) return;
 
+        const btn = document.getElementById('confirmAssignBtn');
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '⚡ Dispatching...';
+        }
+
         try {
-          await adminApi.deliveries.assignCourier(deliveryId, courierId);
+          const res = await adminApi.operations.assignCourier(deliveryId, courierId);
           this.closeModal('modalAssignCourier');
-          this.showToast(`Courier dispatched to delivery #${deliveryId}.`, 'success');
-          this.loadDeliveries();
-          this.loadDashboard();
+          this.showToast(res.message || `Courier dispatched to delivery #${deliveryId}.`, 'success');
+          await this.loadDeliveries();
+          await this.loadCouriers();
+          await this.loadDashboard();
         } catch (err) {
           this.showToast(err.message, 'error');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+          }
         }
       });
 
@@ -479,6 +535,7 @@
         const data = await adminApi.deliveries.list(status, search);
         this.deliveries = data || [];
         this.renderDeliveriesTable();
+        this.updateOperationsDispatchControls();
       } catch (err) {
         tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:2rem; color:#f87171;">Error loading deliveries: ${this.escapeHtml(err.message)}</td></tr>`;
       }
@@ -503,8 +560,9 @@
       const isOps = this.currentRole === 'operations_admin' || this.currentRole === 'super_admin';
 
       tbody.innerHTML = this.deliveries.map(d => {
-        const canAssign = isOps && ['paid', 'courier_assigned'].includes(d.delivery_status);
-        const canCancel = isOps && !['delivered', 'cancelled'].includes(d.delivery_status);
+        const statusKey = String(d.delivery_status || d.status || '').toLowerCase();
+        const canAssign = isOps && !['delivered', 'cancelled'].includes(statusKey);
+        const canCancel = isOps && !['delivered', 'cancelled'].includes(statusKey);
 
         return `
           <tr>
@@ -598,9 +656,16 @@
             <td style="font-weight:700; text-align:center; color:#34d399;">${completedDeliveries}</td>
             <td>
               ${isOps ? `
-                <button class="btn ${isActive ? 'btn-secondary' : 'btn-primary'} btn-sm" onclick="window.adminApp.toggleCourierStatus(${c.id})">
-                  ${isActive ? 'Deactivate' : 'Activate'}
-                </button>
+                <div style="display:flex; gap:0.4rem; align-items:center;">
+                  ${isActive ? `
+                    <button class="btn btn-primary btn-sm" onclick="window.adminApp.openAssignForCourierModal(${c.id})">
+                      ⚡ Dispatch
+                    </button>
+                  ` : ''}
+                  <button class="btn ${isActive ? 'btn-secondary' : 'btn-outline'} btn-sm" onclick="window.adminApp.toggleCourierStatus(${c.id})">
+                    ${isActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
               ` : '<span style="color:var(--text-dim);">Read-only</span>'}
             </td>
           </tr>
@@ -1037,24 +1102,97 @@
       }
     }
 
-    async openAssignModal(deliveryId) {
-      document.getElementById('assignDeliveryId').value = deliveryId;
+    async openAssignModal(deliveryId, preselectedCourierId = null) {
+      const idInput = document.getElementById('assignDeliveryId');
+      if (idInput) idInput.value = deliveryId || '';
+
+      const card = document.getElementById('assignDeliveryCard');
+      if (card) {
+        const d = (this.deliveries || []).find(item => String(item.id) === String(deliveryId) || item.tracking_number === deliveryId);
+        if (d) {
+          card.style.display = 'block';
+          card.innerHTML = `
+            <div style="font-weight:700; color:#60a5fa;">#${d.id} • ${this.escapeHtml(d.tracking_number)}</div>
+            <div style="font-size:0.8rem; color:var(--text-dim); margin-top:2px;">
+              <strong>${this.escapeHtml(d.customer_name || 'Sender')}</strong> ➔ 
+              <span>${this.escapeHtml(d.dropoff_location || d.delivery_location || 'Dropoff')}</span>
+            </div>
+            <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">
+              ${this.escapeHtml(d.package_description || 'Parcel')} • Status: ${this.renderStatusPill(d.delivery_status || d.status)}
+            </div>
+          `;
+        } else {
+          card.style.display = 'none';
+        }
+      }
+
       const select = document.getElementById('assignCourierSelect');
       select.innerHTML = '<option value="">Loading active couriers...</option>';
 
       try {
-        const couriers = await adminApi.couriers.list();
-        const active = (couriers || []).filter(c => c.status === 'active' || c.is_active === true || c.is_active === 1);
-        if (active.length === 0) {
+        const couriers = await adminApi.couriers.listAvailable();
+        if (!couriers || couriers.length === 0) {
           select.innerHTML = '<option value="">No active couriers found. Please register or activate one.</option>';
         } else {
-          select.innerHTML = active.map(c => `
-            <option value="${c.id}">${this.escapeHtml(c.full_name || c.name)} (${this.escapeHtml(c.phone)}) — ${c.active_tasks || c.active_orders_count || 0} active tasks</option>
+          select.innerHTML = '<option value="">-- Choose Active Courier --</option>' + couriers.map(c => `
+            <option value="${c.id}" ${preselectedCourierId && String(preselectedCourierId) === String(c.id) ? 'selected' : ''}>
+              ${this.escapeHtml(c.full_name || c.name)} (${this.escapeHtml(c.vehicle_plate || c.plate_number || 'Boda')}) — ${c.active_tasks || 0} active orders
+            </option>
           `).join('');
+          if (preselectedCourierId) {
+            select.value = String(preselectedCourierId);
+          }
         }
         this.openModal('modalAssignCourier');
       } catch (err) {
         this.showToast('Failed to load couriers: ' + err.message, 'error');
+      }
+    }
+
+    async openAssignForCourierModal(courierId) {
+      await this.openAssignModal('', courierId);
+      const idInput = document.getElementById('assignDeliveryId');
+      if (idInput) {
+        idInput.focus();
+      }
+    }
+
+    async updateOperationsDispatchControls() {
+      const fastDeliverySelect = document.getElementById('opsFastDeliverySelect');
+      const fastCourierSelect = document.getElementById('opsFastCourierSelect');
+      const badge = document.getElementById('opsAvailableBadge');
+
+      if (!fastDeliverySelect || !fastCourierSelect) return;
+
+      try {
+        const availableCouriers = await adminApi.couriers.listAvailable();
+        if (badge) {
+          badge.textContent = `${(availableCouriers || []).length} Active Couriers Ready`;
+        }
+
+        if (availableCouriers && availableCouriers.length > 0) {
+          fastCourierSelect.innerHTML = '<option value="">-- Select Available Courier --</option>' +
+            availableCouriers.map(c => `
+              <option value="${c.id}">
+                ${this.escapeHtml(c.full_name || c.name)} (${this.escapeHtml(c.vehicle_plate || c.plate_number)}) — ${c.active_tasks || 0} active tasks
+              </option>
+            `).join('');
+        } else {
+          fastCourierSelect.innerHTML = '<option value="">No active couriers available</option>';
+        }
+
+        const assignable = (this.deliveries || []).filter(d => 
+          !['delivered', 'cancelled'].includes(String(d.delivery_status || d.status).toLowerCase())
+        );
+
+        fastDeliverySelect.innerHTML = '<option value="">-- Choose Unassigned / Active Delivery --</option>' +
+          assignable.map(d => `
+            <option value="${d.id}">
+              #${d.id} • ${d.tracking_number} [${d.courier_name ? 'Assigned: ' + this.escapeHtml(d.courier_name) : '⚡ Unassigned'}] ➔ ${this.escapeHtml(d.dropoff_location || d.delivery_location || '')}
+            </option>
+          `).join('');
+      } catch (err) {
+        console.warn('Could not update operations dispatch controls:', err.message);
       }
     }
 
