@@ -366,11 +366,11 @@ function seedInitialData() {
   if (!existingRules) {
     const defaultCategories = JSON.stringify({
       document: 0,
-      small_parcel: 500,
-      medium_box: 1500,
-      large_package: 3000,
-      groceries: 1000,
-      fragile: 2000
+      small_parcel: 0,
+      medium_box: 0,
+      large_package: 0,
+      groceries: 0,
+      fragile: 0
     });
 
     db.prepare(`

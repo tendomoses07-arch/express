@@ -382,33 +382,36 @@
                 </div>
 
                 <div class="form-group">
-                  <label for="pickupLocationInput">Pickup Location / Landmark <span class="req">*</span></label>
-                  <input type="text" id="pickupLocationInput" class="form-input" placeholder="e.g. Kikuubo, Central Kampala" value="Kikuubo, Central Kampala" required>
+                  <label for="pickupLocationInput">Pickup Location / City / Town in Uganda <span class="req">*</span></label>
+                  <input type="text" id="pickupLocationInput" class="form-input" placeholder="e.g. Kampala, Jinja, Mbarara, Gulu, Entebbe, Mbale..." value="Central Kampala" required>
                   <div class="quick-chips-wrap">
                     <span class="quick-chip-label">Quick select:</span>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Kikuubo Commercial Plaza, Downtown">Kikuubo</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Nakasero Market, Kampala">Nakasero</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Acacia Mall, Kisementi, Kololo">Acacia Mall</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Kamwokya, Kira Road">Kamwokya</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Makerere University, Main Gate">Makerere</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Central Kampala">Kampala</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Entebbe Municipality">Entebbe</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Jinja City">Jinja</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Mukono Municipality">Mukono</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Masaka City">Masaka</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Mbarara City">Mbarara</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Gulu City">Gulu</button>
+                    <button type="button" class="quick-chip pickup-chip" data-location="Mbale City">Mbale</button>
                   </div>
                 </div>
 
                 <div class="form-group">
                   <label for="pickupDirectionsInput">Detailed Pickup Directions</label>
-                  <textarea id="pickupDirectionsInput" class="form-textarea" placeholder="e.g. Near XYZ building, second floor, shop G-14">Near XYZ building, second floor, shop G-14</textarea>
+                  <textarea id="pickupDirectionsInput" class="form-textarea" placeholder="e.g. Near main post office / building / shop number">Near main commercial centre / shop</textarea>
                 </div>
 
                 <div class="form-group">
                   <label for="pickupNotesInput">Optional Pickup Notes</label>
-                  <input type="text" id="pickupNotesInput" class="form-input" placeholder="e.g. Call before parking outside">
+                  <input type="text" id="pickupNotesInput" class="form-input" placeholder="e.g. Call sender before arrival">
                 </div>
               </fieldset>
 
               <!-- 2. Recipient Details -->
               <fieldset class="form-fieldset">
                 <legend class="fieldset-title dest">
-                  <span>2. Recipient / Delivery Details</span>
+                  <span>2. Recipient / Delivery Destination</span>
                 </legend>
                 
                 <div class="form-row">
@@ -423,49 +426,53 @@
                 </div>
 
                 <div class="form-group">
-                  <label for="deliveryLocationInput">Destination Location / Landmark <span class="req">*</span></label>
-                  <input type="text" id="deliveryLocationInput" class="form-input" placeholder="e.g. Ntinda Complex, Kampala" value="Ntinda Complex, Ntinda" required>
+                  <label for="deliveryLocationInput">Destination Town / City / District in Uganda <span class="req">*</span></label>
+                  <input type="text" id="deliveryLocationInput" class="form-input" placeholder="e.g. Jinja, Mbarara, Gulu, Mbale, Entebbe, Fort Portal, Arua..." value="Jinja City" required>
                   <div class="quick-chips-wrap">
                     <span class="quick-chip-label">Quick select:</span>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Ntinda Complex, Ntinda">Ntinda</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Village Mall, Bugolobi">Bugolobi</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Kansanga, Ggaba Road">Kansanga</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Naalya Metroplex">Naalya</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Mengo, Albert Cook Road">Mengo</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Luzira Port Bell">Luzira</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Jinja City">Jinja</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Mbarara City">Mbarara</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Gulu City">Gulu</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Mbale City">Mbale</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Entebbe Municipality">Entebbe</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Fort Portal Tourism City">Fort Portal</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Arua City">Arua</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Masaka City">Masaka</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Lira City">Lira</button>
+                    <button type="button" class="quick-chip delivery-chip" data-location="Ntinda, Kampala">Ntinda</button>
                   </div>
                 </div>
 
                 <div class="form-group">
                   <label for="deliveryDirectionsInput">Detailed Delivery Directions</label>
-                  <textarea id="deliveryDirectionsInput" class="form-textarea" placeholder="e.g. Block B, 2nd floor, Tech Hub office">Block B, 2nd floor, Tech Hub office</textarea>
+                  <textarea id="deliveryDirectionsInput" class="form-textarea" placeholder="e.g. Block B, Main Street office / landmark">Main road commercial office / premises</textarea>
                 </div>
 
                 <div class="form-group">
                   <label for="deliveryNotesInput">Optional Delivery Instructions</label>
-                  <input type="text" id="deliveryNotesInput" class="form-input" placeholder="e.g. Call recipient when arriving" value="Call recipient when arriving">
+                  <input type="text" id="deliveryNotesInput" class="form-input" placeholder="e.g. Call recipient upon arrival" value="Call recipient upon arrival">
                 </div>
               </fieldset>
 
               <!-- 3. Item Details -->
               <fieldset class="form-fieldset">
                 <legend class="fieldset-title">
-                  <span>3. Item &amp; Package Details</span>
+                  <span>3. Package Details (Rates Based on Road Distance Across Uganda)</span>
                 </legend>
 
                 <div class="form-group">
                   <label for="itemDescriptionInput">Item / Package Description <span class="req">*</span></label>
-                  <input type="text" id="itemDescriptionInput" class="form-input" placeholder="e.g. Legal documents, Small parcel, Groceries, Spare parts" value="Legal contract documents and corporate seal" required>
+                  <input type="text" id="itemDescriptionInput" class="form-input" placeholder="e.g. Business documents, Parcel, Spare parts, Electronics" value="Commercial parcel & business documentation" required>
                 </div>
 
                 <div class="form-group">
-                  <label>Package Category / Size</label>
+                  <label>Package Category / Type <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">(No size surcharge — rates driven by actual road distance)</span></label>
                   <div class="category-selector">
                     <label class="category-option">
                       <input type="radio" name="item_category" value="document" checked>
                       <div class="category-box">
                         <span class="category-name">Document / Envelope</span>
-                        <span class="category-fee">+0 UGX</span>
+                        <span class="category-fee">Distance Rate</span>
                       </div>
                     </label>
 
@@ -473,7 +480,7 @@
                       <input type="radio" name="item_category" value="small_parcel">
                       <div class="category-box">
                         <span class="category-name">Small Parcel</span>
-                        <span class="category-fee">+500 UGX</span>
+                        <span class="category-fee">Distance Rate</span>
                       </div>
                     </label>
 
@@ -481,7 +488,7 @@
                       <input type="radio" name="item_category" value="medium_box">
                       <div class="category-box">
                         <span class="category-name">Medium Box</span>
-                        <span class="category-fee">+1,500 UGX</span>
+                        <span class="category-fee">Distance Rate</span>
                       </div>
                     </label>
 
@@ -489,7 +496,7 @@
                       <input type="radio" name="item_category" value="large_package">
                       <div class="category-box">
                         <span class="category-name">Large Package</span>
-                        <span class="category-fee">+3,000 UGX</span>
+                        <span class="category-fee">Distance Rate</span>
                       </div>
                     </label>
 
@@ -497,7 +504,7 @@
                       <input type="radio" name="item_category" value="groceries">
                       <div class="category-box">
                         <span class="category-name">Groceries</span>
-                        <span class="category-fee">+1,000 UGX</span>
+                        <span class="category-fee">Distance Rate</span>
                       </div>
                     </label>
 
@@ -505,7 +512,7 @@
                       <input type="radio" name="item_category" value="fragile">
                       <div class="category-box">
                         <span class="category-name">Fragile Item</span>
-                        <span class="category-fee">+2,000 UGX</span>
+                        <span class="category-fee">Distance Rate</span>
                       </div>
                     </label>
                   </div>
@@ -513,7 +520,7 @@
 
                 <div class="form-group">
                   <label for="specialInstructionsInput">Special Handling Instructions</label>
-                  <input type="text" id="specialInstructionsInput" class="form-input" placeholder="e.g. Keep flat, do not bend, keep dry" value="Keep flat in waterproof folder">
+                  <input type="text" id="specialInstructionsInput" class="form-input" placeholder="e.g. Keep upright, handle with care, keep dry" value="Handle with care">
                 </div>
 
                 <!-- Urgent Express Toggle -->
@@ -521,7 +528,7 @@
                   <div class="urgent-info">
                     <div>
                       <div class="urgent-title">Urgent Express Priority Dispatch</div>
-                      <div class="urgent-sub">Immediate courier assignment &amp; direct routing (+3,000 UGX)</div>
+                      <div class="urgent-sub">Immediate courier dispatch &amp; expedited routing (+3,000 UGX)</div>
                     </div>
                   </div>
                   <label class="switch" onclick="event.stopPropagation()">
@@ -540,25 +547,29 @@
           <!-- Live Pricing Quote Card (Sticky) -->
           <div class="pricing-quote-card">
             <div class="quote-header">
-              <h3>Delivery Fee Quote</h3>
-              <span class="quote-badge">Live Estimate</span>
+              <h3>Nationwide Delivery Quote</h3>
+              <span class="quote-badge">All-Uganda Road Rates</span>
             </div>
 
             <ul class="quote-breakdown-list">
               <li class="quote-item">
-                <span>Estimated Distance:</span>
-                <strong id="quoteDistance">7.5 km</strong>
+                <span>Estimated Road Distance:</span>
+                <strong id="quoteDistance">87.3 km</strong>
+              </li>
+              <li class="quote-item" id="quoteRouteRow">
+                <span>Route Classification:</span>
+                <strong id="quoteRouteType" style="color:var(--kola-blue-dark); font-size:0.8rem;">Highway Corridor</strong>
               </li>
               <li class="quote-item">
-                <span>Base Delivery Fee:</span>
+                <span>Base Dispatch Fee:</span>
                 <strong id="quoteBaseFee">UGX 4,000</strong>
               </li>
               <li class="quote-item">
-                <span>Distance Charge:</span>
-                <strong id="quoteDistanceFee">UGX 6,000</strong>
+                <span>Dynamic Road Distance Fee:</span>
+                <strong id="quoteDistanceFee">UGX 61,000</strong>
               </li>
-              <li class="quote-item">
-                <span>Item Category Surcharge:</span>
+              <li class="quote-item" id="quoteCategoryRow" style="display:none;">
+                <span>Package Surcharge:</span>
                 <strong id="quoteCategoryFee">UGX 0</strong>
               </li>
               <li class="quote-item" id="quoteUrgentRow" style="display: none; color: var(--kola-blue-dark); font-weight: 700;">
@@ -569,7 +580,7 @@
 
             <div class="quote-total-box">
               <div class="total-label">Total Delivery Fee:</div>
-              <div class="total-amount" id="quoteTotalFee">10,000<small>UGX</small></div>
+              <div class="total-amount" id="quoteTotalFee">65,000<small>UGX</small></div>
             </div>
 
             <div class="cashless-notice">
@@ -578,7 +589,7 @@
             </div>
 
             <div style="font-size: 0.8rem; color: var(--text-dim); text-align: center; line-height: 1.4;">
-              Rates are calculated dynamically based on Kampala road distance and package size. Configured securely by Kola Express.
+              Rates are calculated dynamically based on road distance all over Uganda as a country. Configured securely by Kola Express.
             </div>
           </div>
 

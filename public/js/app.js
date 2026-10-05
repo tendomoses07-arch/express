@@ -365,20 +365,44 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderQuote(quote) {
-    document.getElementById('quoteDistance').textContent = `${quote.distance_km} km`;
-    document.getElementById('quoteBaseFee').textContent = `UGX ${quote.base_fee.toLocaleString()}`;
-    document.getElementById('quoteDistanceFee').textContent = `UGX ${quote.distance_fee.toLocaleString()}`;
-    document.getElementById('quoteCategoryFee').textContent = quote.category_fee > 0 ? `+ UGX ${quote.category_fee.toLocaleString()}` : 'UGX 0';
-    
-    const urgentRow = document.getElementById('quoteUrgentRow');
-    if (quote.is_urgent && quote.urgent_fee > 0) {
-      urgentRow.style.display = 'flex';
-      document.getElementById('quoteUrgentFee').textContent = `+ UGX ${quote.urgent_fee.toLocaleString()}`;
-    } else {
-      urgentRow.style.display = 'none';
+    const distEl = document.getElementById('quoteDistance');
+    if (distEl) distEl.textContent = `${quote.distance_km} km`;
+
+    const routeTypeEl = document.getElementById('quoteRouteType');
+    if (routeTypeEl) {
+      routeTypeEl.textContent = quote.route_type || 'Uganda Road Network';
     }
 
-    document.getElementById('quoteTotalFee').innerHTML = `${quote.total_fee.toLocaleString()}<small>UGX</small>`;
+    const baseEl = document.getElementById('quoteBaseFee');
+    if (baseEl) baseEl.textContent = `UGX ${quote.base_fee.toLocaleString()}`;
+
+    const distFeeEl = document.getElementById('quoteDistanceFee');
+    if (distFeeEl) distFeeEl.textContent = `UGX ${quote.distance_fee.toLocaleString()}`;
+
+    const catRow = document.getElementById('quoteCategoryRow');
+    const catFeeEl = document.getElementById('quoteCategoryFee');
+    if (catRow) {
+      if (quote.category_fee > 0) {
+        catRow.style.display = 'flex';
+        if (catFeeEl) catFeeEl.textContent = `+ UGX ${quote.category_fee.toLocaleString()}`;
+      } else {
+        catRow.style.display = 'none';
+      }
+    }
+    
+    const urgentRow = document.getElementById('quoteUrgentRow');
+    if (urgentRow) {
+      if (quote.is_urgent && quote.urgent_fee > 0) {
+        urgentRow.style.display = 'flex';
+        const urgentFeeEl = document.getElementById('quoteUrgentFee');
+        if (urgentFeeEl) urgentFeeEl.textContent = `+ UGX ${quote.urgent_fee.toLocaleString()}`;
+      } else {
+        urgentRow.style.display = 'none';
+      }
+    }
+
+    const totalEl = document.getElementById('quoteTotalFee');
+    if (totalEl) totalEl.innerHTML = `${quote.total_fee.toLocaleString()}<small>UGX</small>`;
   }
 
   // Attach live listeners for quote inputs
