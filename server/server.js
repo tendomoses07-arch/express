@@ -99,12 +99,20 @@ const server = app.listen(PORT, () => {
   console.log(`===============================================`);
 });
 
-const adminServer = adminApp.listen(ADMIN_PORT, () => {
-  console.log(`===============================================`);
-  console.log(`⚡ KOLA EXPRESS Admin Console is running!`);
-  console.log(`📍 Independent Admin Portal: http://localhost:${ADMIN_PORT}`);
-  console.log(`🛡️ Access Control: Super, Operations & Finance RBAC`);
-  console.log(`===============================================`);
-});
+let adminServer = null;
+try {
+  adminServer = adminApp.listen(ADMIN_PORT, () => {
+    console.log(`===============================================`);
+    console.log(`⚡ KOLA EXPRESS Admin Console is running!`);
+    console.log(`📍 Independent Admin Portal: http://localhost:${ADMIN_PORT}`);
+    console.log(`🛡️ Access Control: Super, Operations & Finance RBAC`);
+    console.log(`===============================================`);
+  });
+  adminServer.on('error', (err) => {
+    console.warn(`[Hostinger / Cloud Info] Standalone admin port ${ADMIN_PORT} not bound (${err.message}). Admin portal is fully accessible at /admin on main port.`);
+  });
+} catch (err) {
+  console.warn(`[Hostinger / Cloud Info] Standalone admin port ${ADMIN_PORT} not bound. Admin portal is fully accessible at /admin on main port.`);
+}
 
 module.exports = { app, adminApp, server, adminServer };
