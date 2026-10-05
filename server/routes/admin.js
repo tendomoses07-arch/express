@@ -167,6 +167,15 @@ function mapDeliveryForAdmin(d) {
   else if (rawStatus === 'cancelled') delivery_status = 'cancelled';
   else delivery_status = rawStatus || 'pending';
 
+  // Normalize payment_status ('Successful' -> 'paid', 'Pending' -> 'pending', 'Failed' -> 'failed')
+  let normalizedPayment = 'pending';
+  const rawPayment = (d.payment_status || '').toLowerCase().trim();
+  if (rawPayment === 'successful' || rawPayment === 'paid' || rawStatus === 'payment confirmed' || !['awaiting payment', 'pending'].includes(rawStatus)) {
+    normalizedPayment = 'paid';
+  } else if (rawPayment === 'failed') {
+    normalizedPayment = 'failed';
+  }
+
   return {
     ...d,
     delivery_status,
@@ -177,7 +186,7 @@ function mapDeliveryForAdmin(d) {
     package_description: d.package_description || d.item_description,
     package_weight: d.package_weight || d.distance_km || 1,
     price: d.price != null ? d.price : d.delivery_fee,
-    payment_status: d.payment_status || (d.status === 'Awaiting Payment' ? 'pending' : 'paid'),
+    payment_status: normalizedPayment,
     can_assign: !['Delivered', 'Cancelled'].includes(d.status)
   };
 }
@@ -297,10 +306,9 @@ router.get('/deliveries', (req, res) => {
         c.full_name as courier_name, 
         c.phone as courier_phone, 
         c.plate_number as courier_plate,
-        p.status as payment_status
+        (SELECT payment_status FROM payments WHERE delivery_id = d.id ORDER BY id DESC LIMIT 1) as payment_status
       FROM deliveries d
       LEFT JOIN couriers c ON d.courier_id = c.id
-      LEFT JOIN payments p ON p.delivery_id = d.id
       WHERE 1=1
     `;
     const params = [];
