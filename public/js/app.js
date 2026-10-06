@@ -63,9 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Role-based UI Customization
+    const chipAdminPortal = document.getElementById('chipAdminPortal');
     if (user.role === 'admin') {
-      window.location.href = '/admin';
-      return true;
+      if (chipAdminPortal) chipAdminPortal.style.display = 'inline-flex';
+      if (headerUserRole) {
+        headerUserRole.textContent = 'Admin';
+        headerUserRole.className = 'user-role-badge admin-role';
+      }
+    } else {
+      if (chipAdminPortal) chipAdminPortal.style.display = 'none';
     }
 
     const mobileCustomerTabs = document.getElementById('mobileCustomerTabs');
@@ -1896,8 +1902,6 @@ document.addEventListener('DOMContentLoaded', () => {
         checkAuthAndEnforceGate();
         if (res.user.role === 'courier') {
           switchView('courier');
-        } else if (res.user.role === 'admin') {
-          window.location.href = '/admin';
         } else {
           switchView('home');
         }
