@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const routeTypeEl = document.getElementById('quoteRouteType');
     if (routeTypeEl) {
-      routeTypeEl.textContent = quote.route_type || 'Central Region Road Corridor';
+      routeTypeEl.textContent = quote.route_type || 'Kampala & Wakiso Metro Corridor';
     }
 
     const baseEl = document.getElementById('quoteBaseFee');

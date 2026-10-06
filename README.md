@@ -47,7 +47,7 @@ The server runs at: **http://localhost:3000**
 - **Frontend**: Lightweight Vanilla HTML5, CSS3 design system, and ES6+ JavaScript. Fast, zero-build step, zero bundle bloat, responsive across phones, tablets, and desktops.
 - **Backend**: Node.js & Express REST API with security middleware and JWT token verification.
 - **Database**: SQLite (`better-sqlite3`) relational database with ACID transactions, foreign keys, and automatic seeding.
-- **Pricing Engine**: Dynamic rule-based pricing supporting Central Region of Uganda road network distance calculation (e.g. 800 UGX per 1 km), base fees, zero package size surcharges, and priority dispatch.
+- **Pricing Engine**: Dynamic rule-based pricing supporting Kampala & Wakiso District road network distance calculation (800 UGX per 1 km), base fees, zero package size surcharges, and priority dispatch.
 - **Cashless Engine**: Server-side simulated STK Push and callback verification for **MTN Mobile Money** and **Airtel Money** (Uganda standard formats `077/078/076` and `070/075/074`).
 
 ---
