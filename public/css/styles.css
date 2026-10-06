@@ -4556,6 +4556,39 @@ input:checked + .slider:before {
   border-top-color: #38bdf8;
 }
 
+/* Live Quote Error Box */
+.quote-error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.75rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  color: #b91c1c;
+  line-height: 1.4;
+  animation: fadeIn 0.2s ease;
+}
+
+[data-theme="dark"] .quote-error-box {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.quote-error-box .quote-error-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.quote-error-box .quote-error-text {
+  flex: 1;
+  font-weight: 500;
+}
+
 /* ===================================================================
    LOCATION CLARIFICATION MODAL
    =================================================================== */

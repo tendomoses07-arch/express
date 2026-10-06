@@ -409,17 +409,40 @@ async function calculateLiveDeliveryQuote({
   const mapService = require('./services/mapService');
   const rules = getActivePricingRules();
 
+  if (!pickup || typeof pickup !== 'string' || !pickup.trim()) {
+    return { error: true, field: 'pickup', message: 'Pickup address cannot be empty.' };
+  }
+  if (!destination || typeof destination !== 'string' || !destination.trim()) {
+    return { error: true, field: 'delivery', message: 'Delivery address cannot be empty.' };
+  }
+  if (pickup.trim().toLowerCase() === destination.trim().toLowerCase()) {
+    return {
+      error: true,
+      message: 'Pickup and delivery locations cannot be identical. Please enter distinct pickup and drop-off points.'
+    };
+  }
+
+  // Validate that provided coordinates fall within the Uganda geographical bounding box
+  const isValidUgandaCoord = (lat, lng) =>
+    !isNaN(lat) && !isNaN(lng) && lat >= -2.0 && lat <= 4.5 && lng >= 29.0 && lng <= 35.5;
+
   // 1. Resolve Origin / Pickup
   let originLocation = null;
   if (pickup_coords && pickup_coords.lat && (pickup_coords.lng || pickup_coords.lon)) {
-    originLocation = {
-      title: pickup_coords.name || pickup_coords.title || pickup,
-      display_name: pickup_coords.display_name || pickup,
-      lat: parseFloat(pickup_coords.lat),
-      lng: parseFloat(pickup_coords.lng || pickup_coords.lon),
-      district: pickup_coords.district || 'Kampala / Wakiso'
-    };
-  } else {
+    const lat = parseFloat(pickup_coords.lat);
+    const lng = parseFloat(pickup_coords.lng || pickup_coords.lon);
+    if (isValidUgandaCoord(lat, lng)) {
+      originLocation = {
+        title: pickup_coords.name || pickup_coords.title || pickup,
+        display_name: pickup_coords.display_name || pickup,
+        lat,
+        lng,
+        district: pickup_coords.district || 'Central'
+      };
+    }
+  }
+
+  if (!originLocation) {
     const geoPickup = await mapService.geocodeAddress(pickup);
     if (!geoPickup.resolved) {
       if (geoPickup.is_ambiguous) {
@@ -445,14 +468,20 @@ async function calculateLiveDeliveryQuote({
   // 2. Resolve Destination / Delivery
   let destLocation = null;
   if (delivery_coords && delivery_coords.lat && (delivery_coords.lng || delivery_coords.lon)) {
-    destLocation = {
-      title: delivery_coords.name || delivery_coords.title || destination,
-      display_name: delivery_coords.display_name || destination,
-      lat: parseFloat(delivery_coords.lat),
-      lng: parseFloat(delivery_coords.lng || delivery_coords.lon),
-      district: delivery_coords.district || 'Kampala / Wakiso'
-    };
-  } else {
+    const lat = parseFloat(delivery_coords.lat);
+    const lng = parseFloat(delivery_coords.lng || delivery_coords.lon);
+    if (isValidUgandaCoord(lat, lng)) {
+      destLocation = {
+        title: delivery_coords.name || delivery_coords.title || destination,
+        display_name: delivery_coords.display_name || destination,
+        lat,
+        lng,
+        district: delivery_coords.district || 'Central'
+      };
+    }
+  }
+
+  if (!destLocation) {
     const geoDrop = await mapService.geocodeAddress(destination);
     if (!geoDrop.resolved) {
       if (geoDrop.is_ambiguous) {
@@ -475,8 +504,19 @@ async function calculateLiveDeliveryQuote({
     destLocation = geoDrop.location;
   }
 
-  // 3. Compute live road routing (distance km & ETA)
-  const route = await mapService.getRoadRoute(originLocation, destLocation);
+  // 3. Compute live road routing (distance km & ETA) strictly via Mapbox
+  let route;
+  try {
+    route = await mapService.getRoadRoute(originLocation, destLocation);
+  } catch (routeErr) {
+    return {
+      error: true,
+      routing_error: true,
+      provider: 'mapbox',
+      message: `Mapbox routing error: ${routeErr.message}`
+    };
+  }
+
   const distance_km = route.distance_km;
   const duration_minutes = route.duration_minutes;
   const eta_text = route.eta_text;

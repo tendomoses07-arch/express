@@ -650,6 +650,33 @@ document.addEventListener('DOMContentLoaded', () => {
   // ===================================================================
   // 4. DYNAMIC DELIVERY PRICING QUOTE CALCULATION (LIVE ROUTING & ETA)
   // ===================================================================
+  let currentQuoteError = null;
+
+  function setQuoteError(msg) {
+    currentQuoteError = msg;
+    currentQuote = null;
+    const errBox = document.getElementById('quoteErrorBox');
+    const errText = document.getElementById('quoteErrorText');
+    if (errBox && errText) {
+      errText.textContent = msg;
+      errBox.style.display = 'flex';
+    }
+    const distEl = document.getElementById('quoteDistance');
+    if (distEl) distEl.textContent = '— km';
+    const etaEl = document.getElementById('quoteEta');
+    if (etaEl) etaEl.textContent = '— mins';
+    const distFeeEl = document.getElementById('quoteDistanceFee');
+    if (distFeeEl) distFeeEl.textContent = '—';
+    const totalEl = document.getElementById('quoteTotalFee');
+    if (totalEl) totalEl.innerHTML = `—<small>UGX</small>`;
+  }
+
+  function clearQuoteError() {
+    currentQuoteError = null;
+    const errBox = document.getElementById('quoteErrorBox');
+    if (errBox) errBox.style.display = 'none';
+  }
+
   function triggerQuoteRecalculate() {
     clearTimeout(quoteDebounceTimer);
     const liveIndicator = document.getElementById('quoteLiveIndicator');
@@ -661,10 +688,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const isUrgent = document.getElementById('urgentDeliveryToggle')?.checked || false;
 
       if (!pickup || !destination) {
+        clearQuoteError();
+        return;
+      }
+
+      if (pickup.toLowerCase() === destination.toLowerCase()) {
+        if (liveIndicator) liveIndicator.style.display = 'none';
+        setQuoteError('Pickup and drop-off addresses cannot be identical. Please enter distinct locations.');
         return;
       }
 
       if (liveIndicator) liveIndicator.style.display = 'flex';
+      clearQuoteError();
 
       try {
         const quote = await window.kolaApi.pricing.calculateQuote({
@@ -685,6 +720,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         currentAmbiguityData = null;
+        clearQuoteError();
 
         // Auto-update coordinates and geocoded pills if returned
         if (quote.origin && quote.origin.lat) {
@@ -715,7 +751,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderQuote(quote);
       } catch (err) {
         if (liveIndicator) liveIndicator.style.display = 'none';
-        console.warn('Quote error:', err);
+        const msg = err.data?.error || err.message || 'Unable to calculate live road route.';
+        setQuoteError(msg);
       }
     }, 400);
   }
@@ -801,6 +838,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentAmbiguityData && currentAmbiguityData.ambiguous) {
         showToast('Please clarify your ambiguous address before proceeding', 'warning');
         openAmbiguityModal(currentAmbiguityData);
+        return;
+      }
+
+      if (currentQuoteError) {
+        showToast(currentQuoteError, 'error');
         return;
       }
 

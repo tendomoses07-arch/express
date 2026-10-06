@@ -104,7 +104,8 @@ router.post('/quote', async (req, res) => {
       return res.status(422).json({
         error: quote.message,
         field: quote.field,
-        not_found: true,
+        routing_error: !!quote.routing_error,
+        not_found: !!quote.not_found,
         provider: 'mapbox'
       });
     }
@@ -186,7 +187,10 @@ router.post('/', authenticateToken, async (req, res) => {
 
     if (quote.error) {
       return res.status(400).json({
-        error: quote.message || 'Unable to resolve the provided address.'
+        error: quote.message || 'Unable to resolve or route the provided address.',
+        routing_error: !!quote.routing_error,
+        field: quote.field,
+        provider: 'mapbox'
       });
     }
 

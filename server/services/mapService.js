@@ -149,6 +149,7 @@ async function geocodeAddress(rawQuery) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
       if (response.status === 401 || response.status === 403) {
         return {
           resolved: false,
@@ -157,7 +158,7 @@ async function geocodeAddress(rawQuery) {
           message: 'Invalid or unauthorized Mapbox Access Token. Please verify MAPBOX_ACCESS_TOKEN in your .env file.'
         };
       }
-      throw new Error(`Mapbox geocoding error: ${response.status} ${response.statusText}`);
+      throw new Error(errBody.message || `Mapbox geocoding error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -242,10 +243,11 @@ async function getRoadRoute(originCoords, destCoords) {
   clearTimeout(timeoutId);
 
   if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
       throw new Error('Invalid or unauthorized Mapbox Access Token for driving directions.');
     }
-    throw new Error(`Mapbox directions error: ${response.status} ${response.statusText}`);
+    throw new Error(errBody.message || `Mapbox directions error: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
@@ -267,7 +269,7 @@ async function getRoadRoute(originCoords, destCoords) {
     return result;
   }
 
-  throw new Error('No driving route found in Mapbox response');
+  throw new Error(data.message || 'No driving road route could be calculated by Mapbox between these locations.');
 }
 
 /**
