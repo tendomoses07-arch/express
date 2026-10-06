@@ -775,12 +775,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const routeTypeEl = document.getElementById('quoteRouteType');
     if (routeTypeEl) {
-      routeTypeEl.textContent = quote.route_type || 'Mapbox Driving Route';
+      routeTypeEl.textContent = quote.route_type || 'Live Driving Road Route';
     }
 
     const badgeEl = document.getElementById('quoteRoutingBadge');
     if (badgeEl) {
-      badgeEl.textContent = '⚡ Mapbox Road Routing';
+      badgeEl.textContent = '⚡ Live Road Routing';
     }
 
     const baseEl = document.getElementById('quoteBaseFee');

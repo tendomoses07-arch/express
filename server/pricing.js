@@ -391,11 +391,11 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
 }
 
 /**
- * LIVE DYNAMIC PRICING ENGINE WITH MAPBOX GEOCODING & DRIVING ROUTING:
+ * LIVE DYNAMIC PRICING ENGINE WITH OPENSTREETMAP & OSRM DRIVING ROUTING:
  * 1. Takes typed addresses (or pre-resolved coordinates).
- * 2. Geocodes using Mapbox Geocoding API v5 with Uganda scope.
+ * 2. Geocodes using OpenStreetMap Nominatim with Uganda scope and local landmark catalog.
  * 3. Detects location ambiguity and prompts customer for clarification.
- * 4. Gets actual road distance & ETA from Mapbox Directions API v5.
+ * 4. Gets actual road distance & ETA from OSRM Live Driving Engine.
  * 5. Applies active pricing rules from database.
  */
 async function calculateLiveDeliveryQuote({
@@ -504,7 +504,7 @@ async function calculateLiveDeliveryQuote({
     destLocation = geoDrop.location;
   }
 
-  // 3. Compute live road routing (distance km & ETA) strictly via Mapbox
+  // 3. Compute live road routing (distance km & ETA) via OSRM Live Driving Engine
   let route;
   try {
     route = await mapService.getRoadRoute(originLocation, destLocation);
@@ -512,8 +512,8 @@ async function calculateLiveDeliveryQuote({
     return {
       error: true,
       routing_error: true,
-      provider: 'mapbox',
-      message: `Mapbox routing error: ${routeErr.message}`
+      provider: 'osrm',
+      message: `Road routing error: ${routeErr.message}`
     };
   }
 
@@ -550,8 +550,8 @@ async function calculateLiveDeliveryQuote({
     duration_minutes,
     eta_text,
     route_type,
-    route_source: route.source || 'Mapbox Directions API (Driving)',
-    map_provider: 'mapbox',
+    route_source: route.source || 'OSRM Live Driving Route',
+    map_provider: 'osrm',
     origin: {
       address: pickup,
       title: originLocation.title,

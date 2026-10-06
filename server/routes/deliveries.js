@@ -52,17 +52,16 @@ router.get('/suggestions', async (req, res) => {
 
 // 0b. Live Map Provider & Config Endpoint
 router.get('/map-config', (req, res) => {
-  const { getMapboxToken } = require('../services/mapService');
-  const token = getMapboxToken();
   res.json({
-    provider: 'mapbox',
-    has_mapbox_token: !!token,
-    mapbox_token_preview: token ? `${token.substring(0, 8)}...` : null,
-    region: 'Uganda'
+    provider: 'osrm',
+    service: 'OpenStreetMap & OSRM Driving Engine',
+    region: 'Uganda',
+    token_required: false,
+    status: 'active'
   });
 });
 
-// 1. Calculate Delivery Quote (Public endpoint for live geocoding, Mapbox road distance, ETA & rate preview)
+// 1. Calculate Delivery Quote (Public endpoint for live geocoding, road distance, ETA & rate preview)
 router.post('/quote', async (req, res) => {
   try {
     const {
@@ -96,7 +95,7 @@ router.post('/quote', async (req, res) => {
         query: quote.query,
         message: quote.message,
         candidates: quote.candidates,
-        provider: 'mapbox'
+        provider: 'openstreetmap'
       });
     }
 
@@ -106,14 +105,14 @@ router.post('/quote', async (req, res) => {
         field: quote.field,
         routing_error: !!quote.routing_error,
         not_found: !!quote.not_found,
-        provider: 'mapbox'
+        provider: 'osrm'
       });
     }
 
     res.json(quote);
   } catch (err) {
-    console.error('[Mapbox Quote Error]:', err.message);
-    res.status(400).json({ error: 'Mapbox calculation failed: ' + err.message, provider: 'mapbox' });
+    console.error('[Route Quote Error]:', err.message);
+    res.status(400).json({ error: 'Route calculation failed: ' + err.message, provider: 'osrm' });
   }
 });
 
@@ -190,7 +189,7 @@ router.post('/', authenticateToken, async (req, res) => {
         error: quote.message || 'Unable to resolve or route the provided address.',
         routing_error: !!quote.routing_error,
         field: quote.field,
-        provider: 'mapbox'
+        provider: 'osrm'
       });
     }
 
