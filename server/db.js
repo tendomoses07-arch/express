@@ -253,6 +253,34 @@ function initDatabase() {
     ensureAdmin('Operations Director', 'ops@kolaexpress.ug', '0770112233', 'admin', 'operations_admin', 'ops123');
     ensureAdmin('Finance Officer', 'finance@kolaexpress.ug', '0770445566', 'admin', 'finance_admin', 'finance123');
 
+    // Synchronize and preserve all customer accounts and order histories from deliveries
+    try {
+      const distinctSenders = db.prepare(`
+        SELECT DISTINCT sender_name, sender_phone
+        FROM deliveries
+        WHERE sender_phone IS NOT NULL AND sender_phone != ''
+      `).all();
+
+      const defaultCustPass = bcrypt.hashSync('customer123', 10);
+      for (const s of distinctSenders) {
+        let existing = db.prepare('SELECT id, full_name, role FROM users WHERE phone = ?').get(s.sender_phone);
+        if (!existing) {
+          const ins = db.prepare(`
+            INSERT INTO users (full_name, phone, password_hash, role)
+            VALUES (?, ?, ?, 'customer')
+          `).run(s.sender_name || 'Customer', s.sender_phone, defaultCustPass);
+          existing = { id: ins.lastInsertRowid };
+        }
+        db.prepare(`
+          UPDATE deliveries
+          SET customer_id = ?
+          WHERE sender_phone = ? AND (customer_id IS NULL OR customer_id != ?)
+        `).run(existing.id, s.sender_phone, existing.id);
+      }
+    } catch (syncCustErr) {
+      console.warn('Customer synchronization warning:', syncCustErr.message);
+    }
+
     // Ensure all deliveries have a special 4-digit recipient verification PIN
     const unpinned = db.prepare("SELECT id, tracking_number, status FROM deliveries WHERE delivery_pin IS NULL OR delivery_pin = ''").all();
     if (unpinned.length > 0) {

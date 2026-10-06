@@ -815,7 +815,7 @@
       tbody.innerHTML = this.customers.map(cust => `
         <tr>
           <td>
-            <div style="font-weight:700;">${this.escapeHtml(cust.name || 'Anonymous Customer')}</div>
+            <div style="font-weight:700;">${this.escapeHtml(cust.full_name || cust.name || 'Customer')}</div>
             <div style="font-size:0.75rem; color:var(--text-dim);">ID #${cust.id}</div>
           </td>
           <td>
@@ -823,8 +823,8 @@
             <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">${this.escapeHtml(cust.phone || '')}</div>
           </td>
           <td style="font-size:0.775rem; color:var(--text-dim);">${this.formatDate(cust.created_at)}</td>
-          <td style="font-weight:700; text-align:center;">${cust.total_deliveries ?? 0}</td>
-          <td style="font-weight:700; text-align:center; color:#60a5fa;">${cust.active_deliveries ?? 0}</td>
+          <td style="font-weight:700; text-align:center;">${cust.total_orders != null ? cust.total_orders : (cust.total_deliveries ?? 0)}</td>
+          <td style="font-weight:700; text-align:center; color:#60a5fa;">${cust.active_orders != null ? cust.active_orders : (cust.active_deliveries ?? 0)}</td>
           <td style="font-weight:700; color:#34d399;">UGX ${(cust.total_spend || 0).toLocaleString()}</td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="window.adminApp.inspectCustomerOrders(${cust.id})">Order History</button>
@@ -835,23 +835,26 @@
 
     async inspectCustomerOrders(customerId) {
       try {
-        const cust = await adminApi.customers.get(customerId);
-        if (!cust) return;
+        const res = await adminApi.customers.get(customerId);
+        if (!res) return;
+        const cust = res.customer || res;
+        const deliveries = res.deliveries || [];
+
         this.openModal('modalInspectDelivery');
-        document.getElementById('inspectTrackingId').textContent = `Customer #${cust.id}: ${cust.name || cust.phone}`;
+        document.getElementById('inspectTrackingId').textContent = `Customer #${cust.id}: ${cust.full_name || cust.name || cust.phone || 'Customer'}`;
 
         const content = document.getElementById('inspectDeliveryContent');
         content.innerHTML = `
           <div style="margin-bottom:1.5rem; padding:1rem; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:var(--radius-md);">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; font-size:0.85rem;">
-              <div><strong>Name:</strong> ${this.escapeHtml(cust.name || '—')}</div>
+              <div><strong>Name:</strong> ${this.escapeHtml(cust.full_name || cust.name || '—')}</div>
               <div><strong>Phone:</strong> ${this.escapeHtml(cust.phone || '—')}</div>
               <div><strong>Email:</strong> ${this.escapeHtml(cust.email || '—')}</div>
-              <div><strong>Total Orders:</strong> ${cust.deliveries?.length || 0}</div>
+              <div><strong>Total Orders:</strong> ${deliveries.length}</div>
             </div>
           </div>
 
-          <h4 style="font-size:0.95rem; font-weight:800; margin-bottom:0.75rem;">Past Deliveries</h4>
+          <h4 style="font-size:0.95rem; font-weight:800; margin-bottom:0.75rem;">Past Deliveries &amp; Full Order History</h4>
           <div class="table-responsive">
             <table class="admin-table">
               <thead>
@@ -864,13 +867,15 @@
                 </tr>
               </thead>
               <tbody>
-                ${(cust.deliveries || []).map(d => `
+                ${deliveries.length === 0 ? `
+                  <tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No deliveries recorded for this customer.</td></tr>
+                ` : deliveries.map(d => `
                   <tr>
-                    <td style="font-family:var(--font-mono); color:#60a5fa; font-weight:700;">#${d.id}</td>
+                    <td style="font-family:var(--font-mono); color:#60a5fa; font-weight:700;">#${d.id} <span style="font-size:0.75rem; color:var(--text-dim);">(${this.escapeHtml(d.tracking_number || '')})</span></td>
                     <td style="font-size:0.75rem;">${this.formatDate(d.created_at)}</td>
-                    <td style="font-size:0.775rem;">${this.escapeHtml(d.pickup_location)} → ${this.escapeHtml(d.dropoff_location)}</td>
-                    <td style="font-weight:600;">UGX ${(d.price || 0).toLocaleString()}</td>
-                    <td>${this.renderStatusPill(d.delivery_status)}</td>
+                    <td style="font-size:0.775rem;">${this.escapeHtml(d.pickup_location)} → ${this.escapeHtml(d.dropoff_location || d.delivery_location)}</td>
+                    <td style="font-weight:600; color:#34d399;">UGX ${(d.price != null ? d.price : (d.delivery_fee || 0)).toLocaleString()}</td>
+                    <td>${this.renderStatusPill(d.delivery_status || d.status)}</td>
                   </tr>
                 `).join('')}
               </tbody>

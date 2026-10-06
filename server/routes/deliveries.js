@@ -195,7 +195,25 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const tracking_number = generateTrackingNumber();
     const delivery_pin = generateDeliveryPin();
-    const customer_id = req.user ? req.user.id : null;
+    
+    // Resolve & persist customer profile so order history is NEVER lost
+    let customer_id = req.user ? req.user.id : null;
+    const cleanSenderPhone = senderPhoneCheck.formattedPhone;
+
+    if (!customer_id) {
+      const existingUser = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanSenderPhone);
+      if (existingUser) {
+        customer_id = existingUser.id;
+      } else {
+        const bcrypt = require('bcryptjs');
+        const defaultCustPass = bcrypt.hashSync('customer123', 10);
+        const ins = db.prepare(`
+          INSERT INTO users (full_name, phone, password_hash, role)
+          VALUES (?, ?, ?, 'customer')
+        `).run(sender_name.trim(), cleanSenderPhone, defaultCustPass);
+        customer_id = ins.lastInsertRowid;
+      }
+    }
 
     const pLat = quote.origin?.lat || null;
     const pLng = quote.origin?.lng || null;
@@ -601,13 +619,16 @@ router.get('/', optionalAuth, (req, res) => {
 
     let deliveries = [];
     if (req.user) {
+      const dbUser = db.prepare('SELECT id, phone, email FROM users WHERE id = ?').get(req.user.id);
+      const userPhone = dbUser?.phone || req.user.phone || '';
       deliveries = db.prepare(`
         SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
         FROM deliveries d
         LEFT JOIN couriers c ON d.courier_id = c.id
-        WHERE d.customer_id = ? OR d.sender_phone = ?
+        WHERE d.customer_id = ? 
+           OR (d.sender_phone = ? AND ? != '')
         ORDER BY d.id DESC
-      `).all(req.user.id, req.user.phone);
+      `).all(req.user.id, userPhone, userPhone);
     } else if (phone) {
       const pCheck = sanitizeAndValidateUgandaPhone(phone);
       const cleanPhone = pCheck.valid ? pCheck.formattedPhone : phone;
@@ -622,7 +643,15 @@ router.get('/', optionalAuth, (req, res) => {
       return res.status(400).json({ error: 'Authentication or phone query parameter required' });
     }
 
-    res.json(deliveries);
+    // Ensure frontend compatibility attributes are present
+    const formatted = deliveries.map(d => ({
+      ...d,
+      dropoff_location: d.delivery_location,
+      price: d.delivery_fee,
+      delivery_status: d.status
+    }));
+
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch deliveries: ' + err.message });
   }

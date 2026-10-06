@@ -924,10 +924,12 @@ router.get('/customers', (req, res) => {
   try {
     const { search } = req.query;
     let query = `
-      SELECT u.id, u.full_name, u.phone, u.email, u.created_at,
-        (SELECT COUNT(*) FROM deliveries WHERE customer_id = u.id OR sender_phone = u.phone) as total_orders,
-        (SELECT COUNT(*) FROM deliveries WHERE (customer_id = u.id OR sender_phone = u.phone) AND status NOT IN ('Delivered', 'Cancelled')) as active_orders,
-        (SELECT COALESCE(SUM(delivery_fee), 0) FROM deliveries WHERE (customer_id = u.id OR sender_phone = u.phone) AND status != 'Cancelled') as total_spend
+      SELECT u.id, u.full_name, u.full_name as name, u.phone, u.email, u.created_at,
+        (SELECT COUNT(*) FROM deliveries WHERE customer_id = u.id OR (sender_phone = u.phone AND u.phone IS NOT NULL)) as total_orders,
+        (SELECT COUNT(*) FROM deliveries WHERE customer_id = u.id OR (sender_phone = u.phone AND u.phone IS NOT NULL)) as total_deliveries,
+        (SELECT COUNT(*) FROM deliveries WHERE (customer_id = u.id OR (sender_phone = u.phone AND u.phone IS NOT NULL)) AND status NOT IN ('Delivered', 'Cancelled')) as active_orders,
+        (SELECT COUNT(*) FROM deliveries WHERE (customer_id = u.id OR (sender_phone = u.phone AND u.phone IS NOT NULL)) AND status NOT IN ('Delivered', 'Cancelled')) as active_deliveries,
+        (SELECT COALESCE(SUM(delivery_fee), 0) FROM deliveries WHERE (customer_id = u.id OR (sender_phone = u.phone AND u.phone IS NOT NULL)) AND status != 'Cancelled') as total_spend
       FROM users u
       WHERE u.role = 'customer'
     `;
@@ -953,22 +955,33 @@ router.get('/customers/:id', (req, res) => {
   try {
     const customerId = Number(req.params.id);
     const customer = db.prepare(`
-      SELECT id, full_name, phone, email, created_at FROM users WHERE id = ? AND role = 'customer'
+      SELECT id, full_name, full_name as name, phone, email, created_at FROM users WHERE id = ? AND role = 'customer'
     `).get(customerId);
 
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const deliveries = db.prepare(`
-      SELECT d.*, c.full_name as courier_name
+    const rawDeliveries = db.prepare(`
+      SELECT d.*, c.full_name as courier_name, c.phone as courier_phone
       FROM deliveries d
       LEFT JOIN couriers c ON d.courier_id = c.id
-      WHERE d.customer_id = ? OR d.sender_phone = ?
+      WHERE d.customer_id = ? OR (d.sender_phone = ? AND ? IS NOT NULL AND ? != '')
       ORDER BY d.id DESC
-    `).all(customerId, customer.phone);
+    `).all(customerId, customer.phone || '', customer.phone, customer.phone);
+
+    const deliveries = rawDeliveries.map(mapDeliveryForAdmin);
 
     res.json({
+      ...customer,
+      id: customer.id,
+      name: customer.full_name,
+      full_name: customer.full_name,
+      phone: customer.phone,
+      email: customer.email,
+      created_at: customer.created_at,
+      total_orders: deliveries.length,
+      total_deliveries: deliveries.length,
       customer,
       deliveries
     });

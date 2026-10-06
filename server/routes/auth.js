@@ -143,6 +143,15 @@ router.post('/register', (req, res) => {
       role: 'customer'
     };
 
+    // Immediately link all past deliveries associated with this customer phone so order history is preserved
+    if (validatedPhone) {
+      db.prepare(`
+        UPDATE deliveries
+        SET customer_id = ?
+        WHERE sender_phone = ? AND (customer_id IS NULL OR customer_id != ?)
+      `).run(user.id, validatedPhone, user.id);
+    }
+
     const token = jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ user, token });
   } catch (err) {
