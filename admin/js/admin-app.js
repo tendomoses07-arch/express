@@ -379,6 +379,96 @@
           this.showToast(err.message, 'error');
         }
       });
+
+      // Topbar Change My Password Button
+      document.getElementById('changeMyPasswordBtn')?.addEventListener('click', () => {
+        this.openMyPasswordModal();
+      });
+
+      // Submit Change Staff / Role Password Form (Super Admin)
+      document.getElementById('changeStaffPasswordForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const targetType = document.getElementById('changeStaffPasswordTargetType').value;
+        const staffId = document.getElementById('changeStaffPasswordStaffId').value;
+        const role = document.getElementById('changeStaffPasswordRole').value;
+        const newPassword = document.getElementById('changeStaffNewPassword').value;
+        const confirmPassword = document.getElementById('changeStaffConfirmPassword').value;
+
+        if (newPassword !== confirmPassword) {
+          this.showToast('Passwords do not match. Please re-enter.', 'error');
+          return;
+        }
+
+        if (newPassword.length < 4) {
+          this.showToast('New password must be at least 4 characters.', 'error');
+          return;
+        }
+
+        const btn = document.getElementById('submitChangeStaffPasswordBtn');
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = 'Updating...';
+        }
+
+        try {
+          let res;
+          if (targetType === 'role') {
+            res = await adminApi.staff.changePasswordByRole(role, newPassword);
+          } else {
+            res = await adminApi.staff.changePassword(staffId, newPassword);
+          }
+          this.closeModal('modalChangeStaffPassword');
+          this.showToast(res.message || 'Password updated successfully.', 'success');
+          document.getElementById('changeStaffPasswordForm').reset();
+        } catch (err) {
+          this.showToast(err.message, 'error');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+          }
+        }
+      });
+
+      // Submit Change My Password Form (Self-Service)
+      document.getElementById('changeMyPasswordForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const currentPassword = document.getElementById('myCurrentPassword').value;
+        const newPassword = document.getElementById('myNewPassword').value;
+        const confirmPassword = document.getElementById('myConfirmPassword').value;
+
+        if (newPassword !== confirmPassword) {
+          this.showToast('New passwords do not match. Please re-enter.', 'error');
+          return;
+        }
+
+        if (newPassword.length < 4) {
+          this.showToast('New password must be at least 4 characters.', 'error');
+          return;
+        }
+
+        const btn = document.getElementById('submitChangeMyPasswordBtn');
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = 'Updating...';
+        }
+
+        try {
+          const res = await adminApi.auth.changeMyPassword(currentPassword, newPassword);
+          this.closeModal('modalChangeMyPassword');
+          this.showToast(res.message || 'Your password has been changed successfully.', 'success');
+          document.getElementById('changeMyPasswordForm').reset();
+        } catch (err) {
+          this.showToast(err.message, 'error');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+          }
+        }
+      });
     }
 
     // =================================================================
@@ -970,9 +1060,14 @@
               </td>
               <td style="font-size:0.75rem; color:var(--text-dim);">${this.formatDate(s.created_at)}</td>
               <td>
-                <button class="btn btn-secondary btn-sm" onclick="window.adminApp.toggleStaffStatus(${s.id})">
-                  ${s.is_active ? 'Suspend' : 'Activate'}
-                </button>
+                <div style="display:flex; gap:0.4rem; align-items:center;">
+                  <button class="btn btn-secondary btn-sm" onclick="window.adminApp.openStaffPasswordModal(${s.id}, '${this.escapeHtml(s.name)}', '${this.escapeHtml(s.email || '')}', '${s.admin_role}')" title="Change Password">
+                    🔑 Password
+                  </button>
+                  <button class="btn btn-secondary btn-sm" onclick="window.adminApp.toggleStaffStatus(${s.id})">
+                    ${s.is_active ? 'Suspend' : 'Activate'}
+                  </button>
+                </div>
               </td>
             </tr>
           `).join('');
@@ -1005,6 +1100,58 @@
     closeModal(modalId) {
       const modal = document.getElementById(modalId);
       if (modal) modal.classList.remove('active');
+    }
+
+    openStaffPasswordModal(staffId, name, email, role) {
+      const targetTypeEl = document.getElementById('changeStaffPasswordTargetType');
+      const staffIdEl = document.getElementById('changeStaffPasswordStaffId');
+      const roleEl = document.getElementById('changeStaffPasswordRole');
+      const targetDisplayEl = document.getElementById('changeStaffPasswordTargetDisplay');
+      const subtitleEl = document.getElementById('changeStaffPasswordSubtitle');
+      const newPassEl = document.getElementById('changeStaffNewPassword');
+      const confPassEl = document.getElementById('changeStaffConfirmPassword');
+
+      if (targetTypeEl) targetTypeEl.value = 'staff_id';
+      if (staffIdEl) staffIdEl.value = staffId;
+      if (roleEl) roleEl.value = '';
+      if (targetDisplayEl) targetDisplayEl.value = `${name} (${email || role})`;
+      if (subtitleEl) subtitleEl.textContent = `Reset password for staff member #${staffId} (${role ? role.replace('_', ' ').toUpperCase() : 'ADMIN'})`;
+      if (newPassEl) newPassEl.value = '';
+      if (confPassEl) confPassEl.value = '';
+
+      this.openModal('modalChangeStaffPassword');
+    }
+
+    openRolePasswordModal(role, label) {
+      const targetTypeEl = document.getElementById('changeStaffPasswordTargetType');
+      const staffIdEl = document.getElementById('changeStaffPasswordStaffId');
+      const roleEl = document.getElementById('changeStaffPasswordRole');
+      const targetDisplayEl = document.getElementById('changeStaffPasswordTargetDisplay');
+      const subtitleEl = document.getElementById('changeStaffPasswordSubtitle');
+      const newPassEl = document.getElementById('changeStaffNewPassword');
+      const confPassEl = document.getElementById('changeStaffConfirmPassword');
+
+      if (targetTypeEl) targetTypeEl.value = 'role';
+      if (staffIdEl) staffIdEl.value = '';
+      if (roleEl) roleEl.value = role;
+      if (targetDisplayEl) targetDisplayEl.value = label;
+      if (subtitleEl) subtitleEl.textContent = `Set direct new password for all active accounts with role "${role.replace('_', ' ').toUpperCase()}"`;
+      if (newPassEl) newPassEl.value = '';
+      if (confPassEl) confPassEl.value = '';
+
+      this.openModal('modalChangeStaffPassword');
+    }
+
+    openMyPasswordModal() {
+      const currPassEl = document.getElementById('myCurrentPassword');
+      const newPassEl = document.getElementById('myNewPassword');
+      const confPassEl = document.getElementById('myConfirmPassword');
+
+      if (currPassEl) currPassEl.value = '';
+      if (newPassEl) newPassEl.value = '';
+      if (confPassEl) confPassEl.value = '';
+
+      this.openModal('modalChangeMyPassword');
     }
 
     async inspectDelivery(deliveryId) {

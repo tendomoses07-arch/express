@@ -1227,4 +1227,122 @@ router.post('/users/:id/toggle', requireSuperAdmin, (req, res) => {
   }
 });
 
+// 16. Self-Service Password Change (Any Authenticated Backend Admin)
+router.post('/change-password', (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    if (String(new_password).length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters long' });
+    }
+
+    const user = db.prepare("SELECT id, full_name, email, admin_role, password_hash FROM users WHERE id = ? AND role = 'admin'").get(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
+
+    const isValid = bcrypt.compareSync(current_password, user.password_hash);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Current password does not match. Please verify your current credentials.' });
+    }
+
+    const newHash = bcrypt.hashSync(new_password, 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+
+    logAdminAction(
+      req.user,
+      'CHANGE_OWN_PASSWORD',
+      'users',
+      user.id,
+      `Admin user ${user.full_name} (${user.email}, ${user.admin_role}) successfully updated their password`
+    );
+
+    res.json({
+      message: 'Your admin password has been updated successfully. Please use your new password for future logins.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 17. Reset / Change Password by Role (Super Admin Only: super_admin, operations_admin, finance_admin)
+router.post('/users/by-role/password', requireSuperAdmin, (req, res) => {
+  try {
+    const { admin_role, new_password } = req.body;
+
+    if (!admin_role || !new_password) {
+      return res.status(400).json({ error: 'Admin role and new password are required' });
+    }
+
+    if (String(new_password).length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters long' });
+    }
+
+    const allowedRoles = ['super_admin', 'operations_admin', 'finance_admin'];
+    if (!allowedRoles.includes(admin_role)) {
+      return res.status(400).json({ error: `Invalid role. Allowed roles: ${allowedRoles.join(', ')}` });
+    }
+
+    const targetUser = db.prepare("SELECT id, full_name, email, role, admin_role FROM users WHERE admin_role = ? AND role = 'admin' LIMIT 1").get(admin_role);
+    if (!targetUser) {
+      return res.status(404).json({ error: `No admin account found with role "${admin_role}"` });
+    }
+
+    const newHash = bcrypt.hashSync(new_password, 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, targetUser.id);
+
+    logAdminAction(
+      req.user,
+      'RESET_ROLE_PASSWORD',
+      'users',
+      targetUser.id,
+      `Super Admin reset password for role ${targetUser.admin_role} (${targetUser.email})`
+    );
+
+    res.json({
+      message: `Password for ${targetUser.full_name} (${targetUser.admin_role}) has been successfully updated.`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 18. Reset / Change Password by Staff ID (Super Admin Only)
+router.post('/users/:id/password', requireSuperAdmin, (req, res) => {
+  try {
+    const adminId = Number(req.params.id);
+    const { new_password } = req.body;
+
+    if (!new_password || String(new_password).length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters long' });
+    }
+
+    const targetUser = db.prepare("SELECT id, full_name, email, role, admin_role FROM users WHERE id = ? AND role = 'admin'").get(adminId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
+
+    const newHash = bcrypt.hashSync(new_password, 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, targetUser.id);
+
+    logAdminAction(
+      req.user,
+      'RESET_ADMIN_PASSWORD',
+      'users',
+      targetUser.id,
+      `Super Admin reset password for ${targetUser.full_name} (${targetUser.email}, role: ${targetUser.admin_role})`
+    );
+
+    res.json({
+      message: `Password for ${targetUser.full_name} (${targetUser.admin_role}) has been successfully updated.`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

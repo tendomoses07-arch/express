@@ -95,6 +95,15 @@ const adminApi = {
       const token = getAdminToken();
       const user = getAdminUser();
       return !!(token && user && user.role === 'admin');
+    },
+    async changeMyPassword(currentPassword, newPassword) {
+      return await adminRequest('/admin/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword
+        })
+      });
     }
   },
 
@@ -249,6 +258,21 @@ const adminApi = {
     async toggleStatus(adminId) {
       return await adminRequest(`/admin/users/${adminId}/toggle`, {
         method: 'POST'
+      });
+    },
+    async changePassword(staffId, newPassword) {
+      return await adminRequest(`/admin/users/${staffId}/password`, {
+        method: 'POST',
+        body: JSON.stringify({ new_password: newPassword })
+      });
+    },
+    async changePasswordByRole(adminRole, newPassword) {
+      return await adminRequest('/admin/users/by-role/password', {
+        method: 'POST',
+        body: JSON.stringify({
+          admin_role: adminRole,
+          new_password: newPassword
+        })
       });
     }
   }
