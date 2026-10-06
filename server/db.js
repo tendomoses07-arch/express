@@ -222,7 +222,12 @@ function initDatabase() {
       { name: 'courier_confirmed_received', type: 'INTEGER DEFAULT 0' },
       { name: 'delivery_pin', type: 'TEXT' },
       { name: 'pin_verified_at', type: 'DATETIME' },
-      { name: 'delivery_confirmed_by_pin', type: 'INTEGER DEFAULT 0' }
+      { name: 'delivery_confirmed_by_pin', type: 'INTEGER DEFAULT 0' },
+      { name: 'pickup_lat', type: 'REAL' },
+      { name: 'pickup_lng', type: 'REAL' },
+      { name: 'delivery_lat', type: 'REAL' },
+      { name: 'delivery_lng', type: 'REAL' },
+      { name: 'eta_minutes', type: 'INTEGER' }
     ];
     newCols.forEach(col => {
       if (!deliveryCols.includes(col.name)) {

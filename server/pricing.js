@@ -392,6 +392,155 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
 }
 
 /**
+ * LIVE DYNAMIC PRICING ENGINE WITH GEOCODING & OSRM ROAD ROUTING:
+ * 1. Takes typed addresses (or pre-resolved coordinates).
+ * 2. Geocodes using Nominatim with Uganda scope.
+ * 3. Detects location ambiguity and prompts customer for clarification.
+ * 4. Gets actual road distance & ETA from OSRM live routing.
+ * 5. Applies active pricing rules from database.
+ */
+async function calculateLiveDeliveryQuote({
+  pickup,
+  destination,
+  category = 'small_parcel',
+  is_urgent = false,
+  pickup_coords = null,
+  delivery_coords = null
+}) {
+  const mapService = require('./services/mapService');
+  const rules = getActivePricingRules();
+
+  // 1. Resolve Origin / Pickup
+  let originLocation = null;
+  if (pickup_coords && pickup_coords.lat && (pickup_coords.lng || pickup_coords.lon)) {
+    originLocation = {
+      title: pickup_coords.name || pickup_coords.title || pickup,
+      display_name: pickup_coords.display_name || pickup,
+      lat: parseFloat(pickup_coords.lat),
+      lng: parseFloat(pickup_coords.lng || pickup_coords.lon),
+      district: pickup_coords.district || 'Kampala / Wakiso'
+    };
+  } else {
+    const geoPickup = await mapService.geocodeAddress(pickup);
+    if (!geoPickup.resolved) {
+      if (geoPickup.is_ambiguous) {
+        return {
+          ambiguous: true,
+          ambiguous_field: 'pickup',
+          field_label: 'Pickup Address',
+          query: pickup,
+          message: geoPickup.message,
+          candidates: geoPickup.candidates
+        };
+      }
+      return {
+        error: true,
+        not_found: true,
+        field: 'pickup',
+        message: geoPickup.message
+      };
+    }
+    originLocation = geoPickup.location;
+  }
+
+  // 2. Resolve Destination / Delivery
+  let destLocation = null;
+  if (delivery_coords && delivery_coords.lat && (delivery_coords.lng || delivery_coords.lon)) {
+    destLocation = {
+      title: delivery_coords.name || delivery_coords.title || destination,
+      display_name: delivery_coords.display_name || destination,
+      lat: parseFloat(delivery_coords.lat),
+      lng: parseFloat(delivery_coords.lng || delivery_coords.lon),
+      district: delivery_coords.district || 'Kampala / Wakiso'
+    };
+  } else {
+    const geoDrop = await mapService.geocodeAddress(destination);
+    if (!geoDrop.resolved) {
+      if (geoDrop.is_ambiguous) {
+        return {
+          ambiguous: true,
+          ambiguous_field: 'delivery',
+          field_label: 'Delivery Address',
+          query: destination,
+          message: geoDrop.message,
+          candidates: geoDrop.candidates
+        };
+      }
+      return {
+        error: true,
+        not_found: true,
+        field: 'delivery',
+        message: geoDrop.message
+      };
+    }
+    destLocation = geoDrop.location;
+  }
+
+  // 3. Compute live road routing (distance km & ETA)
+  const route = await mapService.getRoadRoute(originLocation, destLocation);
+  const distance_km = route.distance_km;
+  const duration_minutes = route.duration_minutes;
+  const eta_text = route.eta_text;
+
+  // 4. Apply Pricing Rules
+  const base_fee = rules.base_fee;
+  const per_km = rules.per_km_rate || 800;
+  const distance_fee = Math.round(distance_km * per_km);
+  const category_fee = 0; // Size surcharge zeroed
+  const urgent_fee = is_urgent ? rules.urgent_surcharge : 0;
+  const raw_total = base_fee + distance_fee + category_fee + urgent_fee;
+  const total_fee = Math.max(rules.min_fee, Math.round(raw_total / 500) * 500);
+
+  // Route classification
+  let route_type = 'Live Verified Road Route';
+  const pickupText = (originLocation.display_name || pickup || '').toLowerCase();
+  const dropText = (destLocation.display_name || destination || '').toLowerCase();
+  if (pickupText.includes('entebbe') || dropText.includes('entebbe')) {
+    route_type = 'Kampala–Entebbe Expressway Corridor';
+  } else if (originLocation.district === 'Kampala' && destLocation.district === 'Kampala') {
+    route_type = 'Kampala City Urban Route';
+  } else if (originLocation.district === 'Wakiso' && destLocation.district === 'Wakiso') {
+    route_type = 'Wakiso District Corridor';
+  } else {
+    route_type = 'Kampala & Wakiso Metro Route';
+  }
+
+  return {
+    success: true,
+    distance_km,
+    duration_minutes,
+    eta_text,
+    route_type,
+    route_source: route.source,
+    origin: {
+      address: pickup,
+      title: originLocation.title,
+      display_name: originLocation.display_name,
+      lat: originLocation.lat,
+      lng: originLocation.lng,
+      district: originLocation.district || 'Central'
+    },
+    destination: {
+      address: destination,
+      title: destLocation.title,
+      display_name: destLocation.display_name,
+      lat: destLocation.lat,
+      lng: destLocation.lng,
+      district: destLocation.district || 'Central'
+    },
+    base_fee,
+    distance_fee,
+    category,
+    category_fee: 0,
+    is_urgent: !!is_urgent,
+    urgent_fee,
+    min_fee: rules.min_fee,
+    total_fee,
+    currency: 'UGX'
+  };
+}
+
+/**
  * Update pricing rules (Super Admin only)
  */
 function updatePricingRules({ base_fee, per_km_rate, min_fee, urgent_surcharge, category_surcharges }) {
@@ -425,5 +574,6 @@ module.exports = {
   calculateKampalaDistance,
   getActivePricingRules,
   calculateDeliveryQuote,
+  calculateLiveDeliveryQuote,
   updatePricingRules
 };

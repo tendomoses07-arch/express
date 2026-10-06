@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let activePaymentRef = null;
   let quoteDebounceTimer = null;
   let stkPollingInterval = null;
+  let selectedPickupCoords = null;
+  let selectedDeliveryCoords = null;
+  let currentAmbiguityData = null;
 
   // Cache DOM Elements
   const views = {
@@ -340,38 +343,320 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Quick chips for pickup
-  document.querySelectorAll('.pickup-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const loc = chip.dataset.location;
-      const input = document.getElementById('pickupLocationInput');
-      if (input) {
-        input.value = loc;
-        triggerQuoteRecalculate();
+  // ===================================================================
+  // 2. LIVE ADDRESS AUTOCOMPLETE & RESOLUTION (ANY WRITTEN ADDRESS)
+  // ===================================================================
+  const pickupInput = document.getElementById('pickupLocationInput');
+  const deliveryInput = document.getElementById('deliveryLocationInput');
+  const pickupDropdown = document.getElementById('pickupSuggestionsDropdown');
+  const deliveryDropdown = document.getElementById('deliverySuggestionsDropdown');
+  const pickupPill = document.getElementById('pickupResolvedPill');
+  const deliveryPill = document.getElementById('deliveryResolvedPill');
+  const pickupPillText = document.getElementById('pickupResolvedText');
+  const deliveryPillText = document.getElementById('deliveryResolvedText');
+  const clearPickupBtn = document.getElementById('clearPickupBtn');
+  const clearDeliveryBtn = document.getElementById('clearDeliveryBtn');
+  const ambiguityModal = document.getElementById('ambiguityModal');
+  const ambiguityModalClose = document.getElementById('ambiguityModalClose');
+  const ambiguityCandidatesList = document.getElementById('ambiguityCandidatesList');
+  const ambiguityLocationName = document.getElementById('ambiguityLocationName');
+  const ambiguityRefineInput = document.getElementById('ambiguityRefineInput');
+  const ambiguityRefineBtn = document.getElementById('ambiguityRefineBtn');
+
+  function updateAddressClearButtons() {
+    if (clearPickupBtn && pickupInput) {
+      clearPickupBtn.style.display = pickupInput.value.trim() ? 'flex' : 'none';
+    }
+    if (clearDeliveryBtn && deliveryInput) {
+      clearDeliveryBtn.style.display = deliveryInput.value.trim() ? 'flex' : 'none';
+    }
+  }
+
+  if (clearPickupBtn && pickupInput) {
+    clearPickupBtn.addEventListener('click', () => {
+      pickupInput.value = '';
+      selectedPickupCoords = null;
+      if (pickupPill) pickupPill.style.display = 'none';
+      if (pickupDropdown) pickupDropdown.style.display = 'none';
+      updateAddressClearButtons();
+      pickupInput.focus();
+      triggerQuoteRecalculate();
+    });
+  }
+
+  if (clearDeliveryBtn && deliveryInput) {
+    clearDeliveryBtn.addEventListener('click', () => {
+      deliveryInput.value = '';
+      selectedDeliveryCoords = null;
+      if (deliveryPill) deliveryPill.style.display = 'none';
+      if (deliveryDropdown) deliveryDropdown.style.display = 'none';
+      updateAddressClearButtons();
+      deliveryInput.focus();
+      triggerQuoteRecalculate();
+    });
+  }
+
+  function setupAddressAutocomplete(inputEl, dropdownEl, pillEl, pillTextEl, fieldType) {
+    if (!inputEl || !dropdownEl) return;
+    let timer = null;
+
+    inputEl.addEventListener('input', () => {
+      updateAddressClearButtons();
+      const val = inputEl.value.trim();
+
+      // Invalidate existing coords since user is typing new characters
+      if (fieldType === 'pickup') {
+        selectedPickupCoords = null;
+      } else {
+        selectedDeliveryCoords = null;
+      }
+      if (pillEl) pillEl.style.display = 'none';
+
+      clearTimeout(timer);
+      if (val.length < 2) {
+        dropdownEl.innerHTML = '';
+        dropdownEl.style.display = 'none';
+        return;
+      }
+
+      timer = setTimeout(async () => {
+        try {
+          const res = await window.kolaApi.deliveries.getSuggestions(val);
+          const suggestions = res.suggestions || [];
+          if (!suggestions.length) {
+            dropdownEl.innerHTML = `
+              <div class="suggestion-empty">
+                <span>🔍 No exact road match found. You can still use this typed address.</span>
+              </div>
+            `;
+            dropdownEl.style.display = 'block';
+            return;
+          }
+
+          dropdownEl.innerHTML = suggestions.map((s, idx) => `
+            <div class="suggestion-item" data-idx="${idx}">
+              <div class="suggestion-icon">📍</div>
+              <div class="suggestion-content">
+                <div class="suggestion-title-row">
+                  <span class="suggestion-name">${escapeHtml(s.title)}</span>
+                  ${s.district ? `<span class="suggestion-district-badge">${escapeHtml(s.district)}</span>` : ''}
+                </div>
+                <div class="suggestion-desc">${escapeHtml(s.display_name)}</div>
+              </div>
+            </div>
+          `).join('');
+          dropdownEl.style.display = 'block';
+
+          dropdownEl.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+              const idx = parseInt(item.dataset.idx, 10);
+              const chosen = suggestions[idx];
+              if (!chosen) return;
+
+              inputEl.value = chosen.title;
+              updateAddressClearButtons();
+              dropdownEl.style.display = 'none';
+
+              const coords = {
+                lat: chosen.lat,
+                lng: chosen.lng,
+                name: chosen.title
+              };
+
+              if (fieldType === 'pickup') {
+                selectedPickupCoords = coords;
+                if (pillEl && pillTextEl) {
+                  pillTextEl.textContent = `📍 Geocoded: ${chosen.title}`;
+                  pillEl.style.display = 'inline-flex';
+                }
+              } else {
+                selectedDeliveryCoords = coords;
+                if (pillEl && pillTextEl) {
+                  pillTextEl.textContent = `🏁 Geocoded: ${chosen.title}`;
+                  pillEl.style.display = 'inline-flex';
+                }
+              }
+
+              triggerQuoteRecalculate();
+            });
+          });
+        } catch (err) {
+          console.warn('Suggestions lookup failed:', err);
+          dropdownEl.style.display = 'none';
+        }
+      }, 250);
+    });
+
+    inputEl.addEventListener('focus', () => {
+      if (dropdownEl.children.length > 0 && inputEl.value.trim().length >= 2) {
+        dropdownEl.style.display = 'block';
       }
     });
+  }
+
+  setupAddressAutocomplete(pickupInput, pickupDropdown, pickupPill, pickupPillText, 'pickup');
+  setupAddressAutocomplete(deliveryInput, deliveryDropdown, deliveryPill, deliveryPillText, 'delivery');
+
+  // Close autocomplete dropdowns when clicking outside
+  document.addEventListener('click', (e) => {
+    if (pickupDropdown && !pickupInput?.contains(e.target) && !pickupDropdown.contains(e.target)) {
+      pickupDropdown.style.display = 'none';
+    }
+    if (deliveryDropdown && !deliveryInput?.contains(e.target) && !deliveryDropdown.contains(e.target)) {
+      deliveryDropdown.style.display = 'none';
+    }
   });
 
-  // Quick chips for delivery destination
-  document.querySelectorAll('.delivery-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const loc = chip.dataset.location;
-      const input = document.getElementById('deliveryLocationInput');
-      if (input) {
-        input.value = loc;
-        triggerQuoteRecalculate();
-      }
-    });
-  });
+  // Helper escape function
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
   // ===================================================================
-  // 3. DYNAMIC DELIVERY PRICING QUOTE CALCULATION
+  // 3. AMBIGUITY CLARIFICATION MODAL HANDLER
+  // ===================================================================
+  function openAmbiguityModal(ambiguityData) {
+    if (!ambiguityModal) return;
+    currentAmbiguityData = ambiguityData;
+
+    const searchTerm = ambiguityData.searched_query || ambiguityData.ambiguous_field || 'address';
+    if (ambiguityLocationName) {
+      ambiguityLocationName.textContent = searchTerm;
+    }
+
+    const fieldLabel = ambiguityData.ambiguous_field === 'delivery' ? 'drop-off destination' : 'pickup point';
+    const promptText = document.getElementById('ambiguityPromptText');
+    if (promptText) {
+      promptText.innerHTML = `Multiple locations in Uganda match "<strong>${escapeHtml(searchTerm)}</strong>". Please select your exact intended ${fieldLabel} below so we can calculate the accurate road distance &amp; ETA:`;
+    }
+
+    if (ambiguityCandidatesList) {
+      const candidates = ambiguityData.candidates || [];
+      if (!candidates.length) {
+        ambiguityCandidatesList.innerHTML = `<p style="text-align:center; color:var(--text-muted);">Please refine your address with a specific town, landmark, or street.</p>`;
+      } else {
+        ambiguityCandidatesList.innerHTML = candidates.map((c, idx) => `
+          <div class="candidate-card" data-idx="${idx}">
+            <div class="candidate-card-info">
+              <div class="candidate-card-title">
+                <span>📍 ${escapeHtml(c.title)}</span>
+                ${c.district ? `<span class="suggestion-district-badge">${escapeHtml(c.district)}</span>` : ''}
+              </div>
+              <div class="candidate-card-sub">${escapeHtml(c.display_name)}</div>
+            </div>
+            <button type="button" class="candidate-card-btn">Select This Location</button>
+          </div>
+        `).join('');
+
+        ambiguityCandidatesList.querySelectorAll('.candidate-card').forEach(card => {
+          card.addEventListener('click', () => {
+            const idx = parseInt(card.dataset.idx, 10);
+            const candidate = candidates[idx];
+            if (!candidate) return;
+
+            applyResolvedCandidate(candidate, ambiguityData.ambiguous_field);
+          });
+        });
+      }
+    }
+
+    if (ambiguityRefineInput) {
+      ambiguityRefineInput.value = searchTerm;
+    }
+
+    ambiguityModal.style.display = 'flex';
+  }
+
+  function closeAmbiguityModal() {
+    if (ambiguityModal) {
+      ambiguityModal.style.display = 'none';
+    }
+  }
+
+  if (ambiguityModalClose) {
+    ambiguityModalClose.addEventListener('click', closeAmbiguityModal);
+  }
+
+  if (ambiguityModal) {
+    ambiguityModal.addEventListener('click', (e) => {
+      if (e.target === ambiguityModal) closeAmbiguityModal();
+    });
+  }
+
+  function applyResolvedCandidate(candidate, field) {
+    const coords = {
+      lat: candidate.lat,
+      lng: candidate.lng,
+      name: candidate.title
+    };
+
+    if (field === 'pickup') {
+      if (pickupInput) pickupInput.value = candidate.title;
+      selectedPickupCoords = coords;
+      if (pickupPill && pickupPillText) {
+        pickupPillText.textContent = `📍 Geocoded: ${candidate.title}`;
+        pickupPill.style.display = 'inline-flex';
+      }
+    } else {
+      if (deliveryInput) deliveryInput.value = candidate.title;
+      selectedDeliveryCoords = coords;
+      if (deliveryPill && deliveryPillText) {
+        deliveryPillText.textContent = `🏁 Geocoded: ${candidate.title}`;
+        deliveryPill.style.display = 'inline-flex';
+      }
+    }
+
+    updateAddressClearButtons();
+    closeAmbiguityModal();
+    currentAmbiguityData = null;
+    triggerQuoteRecalculate();
+  }
+
+  if (ambiguityRefineBtn && ambiguityRefineInput) {
+    const handleRefine = () => {
+      const refined = ambiguityRefineInput.value.trim();
+      if (!refined) return;
+      const field = currentAmbiguityData?.ambiguous_field || 'pickup';
+      if (field === 'pickup') {
+        if (pickupInput) pickupInput.value = refined;
+        selectedPickupCoords = null;
+        if (pickupPill) pickupPill.style.display = 'none';
+      } else {
+        if (deliveryInput) deliveryInput.value = refined;
+        selectedDeliveryCoords = null;
+        if (deliveryPill) deliveryPill.style.display = 'none';
+      }
+      updateAddressClearButtons();
+      closeAmbiguityModal();
+      currentAmbiguityData = null;
+      triggerQuoteRecalculate();
+    };
+
+    ambiguityRefineBtn.addEventListener('click', handleRefine);
+    ambiguityRefineInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleRefine();
+      }
+    });
+  }
+
+  // ===================================================================
+  // 4. DYNAMIC DELIVERY PRICING QUOTE CALCULATION (LIVE ROUTING & ETA)
   // ===================================================================
   function triggerQuoteRecalculate() {
     clearTimeout(quoteDebounceTimer);
+    const liveIndicator = document.getElementById('quoteLiveIndicator');
+
     quoteDebounceTimer = setTimeout(async () => {
-      const pickup = document.getElementById('pickupLocationInput')?.value.trim();
-      const destination = document.getElementById('deliveryLocationInput')?.value.trim();
+      const pickup = pickupInput?.value.trim();
+      const destination = deliveryInput?.value.trim();
       const category = document.querySelector('input[name="item_category"]:checked')?.value || 'small_parcel';
       const isUrgent = document.getElementById('urgentDeliveryToggle')?.checked || false;
 
@@ -379,29 +664,75 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      if (liveIndicator) liveIndicator.style.display = 'flex';
+
       try {
         const quote = await window.kolaApi.pricing.calculateQuote({
           pickup_location: pickup,
           delivery_location: destination,
+          pickup_coords: selectedPickupCoords,
+          delivery_coords: selectedDeliveryCoords,
           item_category: category,
           is_urgent: isUrgent
         });
 
+        if (liveIndicator) liveIndicator.style.display = 'none';
+
+        if (quote.ambiguous) {
+          currentAmbiguityData = quote;
+          openAmbiguityModal(quote);
+          return;
+        }
+
+        currentAmbiguityData = null;
+
+        // Auto-update coordinates and geocoded pills if returned
+        if (quote.origin && quote.origin.lat) {
+          selectedPickupCoords = {
+            lat: quote.origin.lat,
+            lng: quote.origin.lng,
+            name: quote.origin.title || quote.origin.display_name
+          };
+          if (pickupPill && pickupPillText) {
+            pickupPillText.textContent = `📍 Geocoded: ${quote.origin.title || quote.origin.display_name}`;
+            pickupPill.style.display = 'inline-flex';
+          }
+        }
+
+        if (quote.destination && quote.destination.lat) {
+          selectedDeliveryCoords = {
+            lat: quote.destination.lat,
+            lng: quote.destination.lng,
+            name: quote.destination.title || quote.destination.display_name
+          };
+          if (deliveryPill && deliveryPillText) {
+            deliveryPillText.textContent = `🏁 Geocoded: ${quote.destination.title || quote.destination.display_name}`;
+            deliveryPill.style.display = 'inline-flex';
+          }
+        }
+
         currentQuote = quote;
         renderQuote(quote);
       } catch (err) {
+        if (liveIndicator) liveIndicator.style.display = 'none';
         console.warn('Quote error:', err);
       }
-    }, 350);
+    }, 400);
   }
 
   function renderQuote(quote) {
     const distEl = document.getElementById('quoteDistance');
     if (distEl) distEl.textContent = `${quote.distance_km} km`;
 
+    const etaEl = document.getElementById('quoteEta');
+    if (etaEl) {
+      const etaMins = quote.duration_minutes || quote.eta_minutes;
+      etaEl.textContent = etaMins ? `~${etaMins} mins` : 'Real-time route';
+    }
+
     const routeTypeEl = document.getElementById('quoteRouteType');
     if (routeTypeEl) {
-      routeTypeEl.textContent = quote.route_type || 'Kampala & Wakiso Metro Corridor';
+      routeTypeEl.textContent = quote.route_type || 'Live Road Routing (OSRM)';
     }
 
     const baseEl = document.getElementById('quoteBaseFee');
@@ -449,26 +780,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const urgentToggle = document.getElementById('urgentDeliveryToggle');
   if (urgentToggle) urgentToggle.addEventListener('change', triggerQuoteRecalculate);
 
+  updateAddressClearButtons();
   // Initial calculation trigger with default fields
   triggerQuoteRecalculate();
 
   // ===================================================================
-  // 4. DELIVERY REQUEST SUBMISSION
+  // 5. DELIVERY REQUEST SUBMISSION (INTEGRATED WITH CASHLESS PAYMENT)
   // ===================================================================
   const deliveryForm = document.getElementById('deliveryRequestForm');
   if (deliveryForm) {
     deliveryForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      // Check if there is an unresolved ambiguous address
+      if (currentAmbiguityData && currentAmbiguityData.ambiguous) {
+        showToast('Please clarify your ambiguous address before proceeding', 'warning');
+        openAmbiguityModal(currentAmbiguityData);
+        return;
+      }
+
       const senderName = document.getElementById('senderNameInput')?.value.trim();
       const senderPhone = document.getElementById('senderPhoneInput')?.value.trim();
-      const pickupLocation = document.getElementById('pickupLocationInput')?.value.trim();
+      const pickupLocation = pickupInput?.value.trim();
       const pickupDirections = document.getElementById('pickupDirectionsInput')?.value.trim();
       const pickupNotes = document.getElementById('pickupNotesInput')?.value.trim();
 
       const recipientName = document.getElementById('recipientNameInput')?.value.trim();
       const recipientPhone = document.getElementById('recipientPhoneInput')?.value.trim();
-      const deliveryLocation = document.getElementById('deliveryLocationInput')?.value.trim();
+      const deliveryLocation = deliveryInput?.value.trim();
       const deliveryDirections = document.getElementById('deliveryDirectionsInput')?.value.trim();
       const deliveryNotes = document.getElementById('deliveryNotesInput')?.value.trim();
 
@@ -496,18 +835,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const submitBtn = document.getElementById('submitRequestBtn');
       const originalText = submitBtn.innerHTML;
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span>⏳ Preparing Request...</span>';
+      submitBtn.innerHTML = '<span>⏳ Calculating Road Route &amp; Price...</span>';
 
       try {
         const payload = {
           sender_name: senderName,
           sender_phone: senderPhone,
           pickup_location: pickupLocation,
+          pickup_coords: selectedPickupCoords,
           pickup_directions: pickupDirections,
           pickup_notes: pickupNotes,
           recipient_name: recipientName,
           recipient_phone: recipientPhone,
           delivery_location: deliveryLocation,
+          delivery_coords: selectedDeliveryCoords,
           delivery_directions: deliveryDirections,
           delivery_notes: deliveryNotes,
           item_description: itemDescription,
@@ -522,7 +863,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Open Cashless Payment Modal
         openPaymentModal(res.delivery);
       } catch (err) {
-        showToast(err.message, 'error');
+        if (err.data && err.data.ambiguous) {
+          openAmbiguityModal(err.data);
+          showToast(err.data.error || 'Please clarify your address', 'warning');
+        } else {
+          showToast(err.message, 'error');
+        }
       } finally {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;

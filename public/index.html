@@ -382,21 +382,19 @@
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label for="pickupLocationInput">Pickup Location in Kampala or Wakiso District <span class="req">*</span></label>
-                  <input type="text" id="pickupLocationInput" class="form-input" placeholder="e.g. Kampala, Entebbe, Kira, Nansana, Wakiso, Ntinda, Kajjansi..." value="Central Kampala" required>
-                  <div class="quick-chips-wrap">
-                    <span class="quick-chip-label">Quick select:</span>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Central Kampala">Kampala</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Ntinda, Kampala">Ntinda</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Kololo, Kampala">Kololo</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Entebbe Municipality">Entebbe</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Kira Municipality">Kira</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Nansana Municipality">Nansana</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Wakiso Town / District HQ">Wakiso</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Bweyogerere / Namboole">Bweyogerere</button>
-                    <button type="button" class="quick-chip pickup-chip" data-location="Kajjansi Town / Entebbe Road">Kajjansi</button>
+                <div class="form-group location-input-group">
+                  <label for="pickupLocationInput">Type Pickup Address / Landmark <span class="req">*</span></label>
+                  <div class="address-input-wrapper">
+                    <span class="input-icon-prefix">📍</span>
+                    <input type="text" id="pickupLocationInput" class="form-input address-live-input" placeholder="Type any street, shop, stage, or area (e.g. Acacia Mall, Kireka Town, Plot 14 Kampala Rd)..." value="Central Kampala" required autocomplete="off">
+                    <button type="button" class="clear-address-btn" id="clearPickupBtn" title="Clear address" style="display: none;">✕</button>
                   </div>
+                  <div class="location-autocomplete-dropdown" id="pickupSuggestionsDropdown" style="display: none;"></div>
+                  <div class="resolved-location-pill" id="pickupResolvedPill" style="display: none;">
+                    <span class="pill-dot"></span>
+                    <span class="pill-text" id="pickupResolvedText">Geocoded</span>
+                  </div>
+                  <span class="form-hint-note">Type any street, building, market, stage, or area in Uganda. Live routing geocodes your address automatically.</span>
                 </div>
 
                 <div class="form-group">
@@ -427,22 +425,19 @@
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label for="deliveryLocationInput">Destination in Kampala or Wakiso District <span class="req">*</span></label>
-                  <input type="text" id="deliveryLocationInput" class="form-input" placeholder="e.g. Entebbe, Kira, Nansana, Wakiso, Ntinda, Kololo, Kyengera..." value="Entebbe Municipality" required>
-                  <div class="quick-chips-wrap">
-                    <span class="quick-chip-label">Quick select:</span>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Entebbe Municipality">Entebbe</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Kira Municipality">Kira</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Nansana Municipality">Nansana</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Wakiso Town / District HQ">Wakiso</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Ntinda, Kampala">Ntinda</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Kololo, Kampala">Kololo</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Bweyogerere / Namboole">Bweyogerere</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Kyengera / Masaka Road">Kyengera</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Kasangati / Gayaza Road">Kasangati</button>
-                    <button type="button" class="quick-chip delivery-chip" data-location="Kajjansi Town / Entebbe Road">Kajjansi</button>
+                <div class="form-group location-input-group">
+                  <label for="deliveryLocationInput">Type Drop-off / Destination Address <span class="req">*</span></label>
+                  <div class="address-input-wrapper">
+                    <span class="input-icon-prefix">🏁</span>
+                    <input type="text" id="deliveryLocationInput" class="form-input address-live-input" placeholder="Type destination building, stage, or area (e.g. Victoria Mall Entebbe, Kira Town, Naalya)..." value="Entebbe Municipality" required autocomplete="off">
+                    <button type="button" class="clear-address-btn" id="clearDeliveryBtn" title="Clear address" style="display: none;">✕</button>
                   </div>
+                  <div class="location-autocomplete-dropdown" id="deliverySuggestionsDropdown" style="display: none;"></div>
+                  <div class="resolved-location-pill" id="deliveryResolvedPill" style="display: none;">
+                    <span class="pill-dot"></span>
+                    <span class="pill-text" id="deliveryResolvedText">Geocoded</span>
+                  </div>
+                  <span class="form-hint-note">Type any delivery address across Uganda. We route dynamically via real road networks.</span>
                 </div>
 
                 <div class="form-group">
@@ -549,18 +544,27 @@
           <!-- Live Pricing Quote Card (Sticky) -->
           <div class="pricing-quote-card">
             <div class="quote-header">
-              <h3>Kampala &amp; Wakiso Delivery Quote</h3>
-              <span class="quote-badge">Dynamic Distance Rates</span>
+              <h3>Delivery Quote</h3>
+              <span class="quote-badge" id="quoteRoutingBadge">⚡ Live Road Route</span>
+            </div>
+
+            <div class="quote-live-indicator" id="quoteLiveIndicator" style="display: none;">
+              <span class="quote-live-spinner"></span>
+              <span>Geocoding &amp; routing road distance...</span>
             </div>
 
             <ul class="quote-breakdown-list">
               <li class="quote-item">
                 <span>Estimated Road Distance:</span>
-                <strong id="quoteDistance">46.2 km</strong>
+                <strong id="quoteDistance">42.9 km</strong>
+              </li>
+              <li class="quote-item" id="quoteEtaRow">
+                <span>Estimated Road Travel Time (ETA):</span>
+                <strong id="quoteEta" style="color:var(--kola-blue-dark);">~38 mins</strong>
               </li>
               <li class="quote-item" id="quoteRouteRow">
                 <span>Route Classification:</span>
-                <strong id="quoteRouteType" style="color:var(--kola-blue-dark); font-size:0.8rem;">Kampala–Entebbe Expressway Corridor</strong>
+                <strong id="quoteRouteType" style="color:var(--kola-blue-dark); font-size:0.8rem;">Live Road Network Routing (OSRM)</strong>
               </li>
               <li class="quote-item">
                 <span>Base Dispatch Fee:</span>
@@ -911,6 +915,37 @@
   </section>
 
 
+
+  <!-- ===================================================================
+       LOCATION CLARIFICATION MODAL (Ambiguous Address Resolution)
+       =================================================================== -->
+  <div class="modal-overlay" id="ambiguityModal" style="display: none;">
+    <div class="modal-content location-clarify-modal">
+      <button class="modal-close-btn" id="ambiguityModalClose" aria-label="Close Modal">✕</button>
+      
+      <div class="clarify-modal-header">
+        <div class="clarify-icon">📍</div>
+        <h2>Clarify Your Location</h2>
+        <p id="ambiguityPromptText" class="clarify-prompt-desc">
+          Multiple locations in Uganda match "<strong id="ambiguityLocationName"></strong>". Please choose your exact intended address below so we can calculate the accurate road distance &amp; ETA:
+        </p>
+      </div>
+
+      <!-- Candidate list options -->
+      <div class="ambiguity-candidates-container" id="ambiguityCandidatesList">
+        <!-- Rendered dynamically by JS -->
+      </div>
+
+      <!-- Manual refinement input -->
+      <div class="ambiguity-refine-box">
+        <label for="ambiguityRefineInput">Or specify extra landmark, road, or town details:</label>
+        <div class="refine-input-row">
+          <input type="text" id="ambiguityRefineInput" class="form-input" placeholder="e.g. Nakasero Market, Duster Street, Kampala">
+          <button type="button" class="btn-primary" id="ambiguityRefineBtn">Refine</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ===================================================================
        CASHLESS PAYMENT MODAL (100% CASHLESS MTN & AIRTEL)

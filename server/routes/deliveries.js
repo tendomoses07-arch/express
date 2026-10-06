@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const { calculateDeliveryQuote } = require('../pricing');
+const { calculateDeliveryQuote, calculateLiveDeliveryQuote } = require('../pricing');
+const { searchAddressSuggestions, geocodeAddress } = require('../services/mapService');
 const { sanitizeAndValidateUgandaPhone } = require('../paymentGateway');
 const jwt = require('jsonwebtoken');
 const { authenticateToken, JWT_SECRET } = require('./auth');
@@ -35,30 +36,84 @@ function generateDeliveryPin() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-// 1. Calculate Delivery Quote (Public endpoint for live preview)
-router.post('/quote', (req, res) => {
+// 0. Live Address Autocomplete Suggestions (Public endpoint for real-time address typing)
+router.get('/suggestions', async (req, res) => {
   try {
-    const { pickup_location, delivery_location, item_category, is_urgent } = req.body;
+    const q = req.query.q;
+    if (!q || typeof q !== 'string' || q.trim().length < 2) {
+      return res.json({ suggestions: [] });
+    }
+    const suggestions = await searchAddressSuggestions(q.trim());
+    res.json({ suggestions });
+  } catch (err) {
+    res.json({ suggestions: [] });
+  }
+});
+
+// 1. Calculate Delivery Quote (Public endpoint for live geocoding, OSRM road distance, ETA & rate preview)
+router.post('/quote', async (req, res) => {
+  try {
+    const {
+      pickup_location,
+      delivery_location,
+      item_category,
+      is_urgent,
+      pickup_coords,
+      delivery_coords
+    } = req.body;
 
     if (!pickup_location || !delivery_location) {
       return res.status(400).json({ error: 'Pickup and delivery locations are required' });
     }
 
-    const quote = calculateDeliveryQuote({
-      pickup: pickup_location,
-      destination: delivery_location,
+    const quote = await calculateLiveDeliveryQuote({
+      pickup: pickup_location.trim(),
+      destination: delivery_location.trim(),
       category: item_category || 'small_parcel',
-      is_urgent: !!is_urgent
+      is_urgent: !!is_urgent,
+      pickup_coords: pickup_coords || null,
+      delivery_coords: delivery_coords || null
     });
+
+    // Check for ambiguity
+    if (quote.ambiguous) {
+      return res.json({
+        ambiguous: true,
+        ambiguous_field: quote.ambiguous_field,
+        field_label: quote.field_label,
+        query: quote.query,
+        message: quote.message,
+        candidates: quote.candidates
+      });
+    }
+
+    if (quote.error) {
+      return res.status(422).json({
+        error: quote.message,
+        field: quote.field,
+        not_found: true
+      });
+    }
 
     res.json(quote);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to calculate quote: ' + err.message });
+    console.warn('[Quote Warning] Live quote calculation failed, using fallback:', err.message);
+    try {
+      const fallbackQuote = calculateDeliveryQuote({
+        pickup: req.body.pickup_location,
+        destination: req.body.delivery_location,
+        category: req.body.item_category || 'small_parcel',
+        is_urgent: !!req.body.is_urgent
+      });
+      res.json(fallbackQuote);
+    } catch (fallbackErr) {
+      res.status(500).json({ error: 'Failed to calculate quote: ' + err.message });
+    }
   }
 });
 
 // 2. Create Delivery Request (Requires registered / authenticated user)
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   try {
     const {
       sender_name,
@@ -66,11 +121,13 @@ router.post('/', authenticateToken, (req, res) => {
       pickup_location,
       pickup_directions,
       pickup_notes,
+      pickup_coords,
       recipient_name,
       recipient_phone,
       delivery_location,
       delivery_directions,
       delivery_notes,
+      delivery_coords,
       item_description,
       item_category = 'small_parcel',
       special_instructions,
@@ -104,17 +161,40 @@ router.post('/', authenticateToken, (req, res) => {
       return res.status(400).json({ error: 'Item description is required' });
     }
 
-    // Server-side calculated quote (enforces correct pricing)
-    const quote = calculateDeliveryQuote({
-      pickup: pickup_location,
-      destination: delivery_location,
+    // Server-side calculated live quote (enforces correct road distance, ETA & fee calculation)
+    const quote = await calculateLiveDeliveryQuote({
+      pickup: pickup_location.trim(),
+      destination: delivery_location.trim(),
       category: item_category,
-      is_urgent: !!is_urgent
+      is_urgent: !!is_urgent,
+      pickup_coords: pickup_coords || null,
+      delivery_coords: delivery_coords || null
     });
+
+    if (quote.ambiguous) {
+      return res.status(400).json({
+        error: `Address is ambiguous. Please clarify your ${quote.field_label || 'location'}.`,
+        ambiguous: true,
+        ambiguous_field: quote.ambiguous_field,
+        candidates: quote.candidates
+      });
+    }
+
+    if (quote.error) {
+      return res.status(400).json({
+        error: quote.message || 'Unable to resolve the provided address.'
+      });
+    }
 
     const tracking_number = generateTrackingNumber();
     const delivery_pin = generateDeliveryPin();
     const customer_id = req.user ? req.user.id : null;
+
+    const pLat = quote.origin?.lat || null;
+    const pLng = quote.origin?.lng || null;
+    const dLat = quote.destination?.lat || null;
+    const dLng = quote.destination?.lng || null;
+    const etaMins = quote.duration_minutes || null;
 
     let deliveryId;
     const createTxn = db.transaction(() => {
@@ -125,14 +205,16 @@ router.post('/', authenticateToken, (req, res) => {
           recipient_name, recipient_phone, delivery_location,
           delivery_directions, delivery_notes, item_description,
           item_category, special_instructions, is_urgent,
-          distance_km, delivery_fee, status, delivery_pin
+          distance_km, delivery_fee, status, delivery_pin,
+          pickup_lat, pickup_lng, delivery_lat, delivery_lng, eta_minutes
         ) VALUES (
           ?, ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?,
-          ?, ?, 'Awaiting Payment', ?
+          ?, ?, 'Awaiting Payment', ?,
+          ?, ?, ?, ?, ?
         )
       `);
 
@@ -155,7 +237,12 @@ router.post('/', authenticateToken, (req, res) => {
         is_urgent ? 1 : 0,
         quote.distance_km,
         quote.total_fee,
-        delivery_pin
+        delivery_pin,
+        pLat,
+        pLng,
+        dLat,
+        dLng,
+        etaMins
       );
 
       deliveryId = result.lastInsertRowid;
@@ -163,8 +250,8 @@ router.post('/', authenticateToken, (req, res) => {
       // Log initial history record
       db.prepare(`
         INSERT INTO delivery_status_history (delivery_id, status, note, updated_by)
-        VALUES (?, 'Request Created', 'Delivery request created with fee quote', 'Customer')
-      `).run(deliveryId);
+        VALUES (?, 'Request Created', ?, 'Customer')
+      `).run(deliveryId, `Delivery request created via live road route (${quote.distance_km} km, ETA: ${quote.eta_text || 'approx. 30 mins'})`);
 
       db.prepare(`
         INSERT INTO delivery_status_history (delivery_id, status, note, updated_by)
