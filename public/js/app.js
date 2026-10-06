@@ -732,16 +732,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const routeTypeEl = document.getElementById('quoteRouteType');
     if (routeTypeEl) {
-      routeTypeEl.textContent = quote.route_type || (quote.map_provider === 'mapbox' ? 'Mapbox Driving Road Route' : 'Live Road Routing');
+      routeTypeEl.textContent = quote.route_type || 'Mapbox Driving Route';
     }
 
     const badgeEl = document.getElementById('quoteRoutingBadge');
     if (badgeEl) {
-      if (quote.map_provider === 'mapbox' || (quote.route_source && quote.route_source.includes('Mapbox'))) {
-        badgeEl.textContent = '⚡ Mapbox Road Routing';
-      } else {
-        badgeEl.textContent = '⚡ Live Road Route';
-      }
+      badgeEl.textContent = '⚡ Mapbox Road Routing';
     }
 
     const baseEl = document.getElementById('quoteBaseFee');

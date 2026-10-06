@@ -52,10 +52,10 @@ router.get('/suggestions', async (req, res) => {
 
 // 0b. Live Map Provider & Config Endpoint
 router.get('/map-config', (req, res) => {
-  const { getMapboxToken, getMapProvider } = require('../services/mapService');
+  const { getMapboxToken } = require('../services/mapService');
   const token = getMapboxToken();
   res.json({
-    provider: getMapProvider(),
+    provider: 'mapbox',
     has_mapbox_token: !!token,
     mapbox_token_preview: token ? `${token.substring(0, 8)}...` : null,
     region: 'Uganda'
@@ -95,7 +95,8 @@ router.post('/quote', async (req, res) => {
         field_label: quote.field_label,
         query: quote.query,
         message: quote.message,
-        candidates: quote.candidates
+        candidates: quote.candidates,
+        provider: 'mapbox'
       });
     }
 
@@ -103,24 +104,15 @@ router.post('/quote', async (req, res) => {
       return res.status(422).json({
         error: quote.message,
         field: quote.field,
-        not_found: true
+        not_found: true,
+        provider: 'mapbox'
       });
     }
 
     res.json(quote);
   } catch (err) {
-    console.warn('[Quote Warning] Live quote calculation failed, using fallback:', err.message);
-    try {
-      const fallbackQuote = calculateDeliveryQuote({
-        pickup: req.body.pickup_location,
-        destination: req.body.delivery_location,
-        category: req.body.item_category || 'small_parcel',
-        is_urgent: !!req.body.is_urgent
-      });
-      res.json(fallbackQuote);
-    } catch (fallbackErr) {
-      res.status(500).json({ error: 'Failed to calculate quote: ' + err.message });
-    }
+    console.error('[Mapbox Quote Error]:', err.message);
+    res.status(400).json({ error: 'Mapbox calculation failed: ' + err.message, provider: 'mapbox' });
   }
 });
 

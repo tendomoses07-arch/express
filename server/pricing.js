@@ -227,9 +227,8 @@ function findClosestUgandaLocation(text) {
 }
 
 /**
- * Calculates accurate road distance (km) on roads of Kampala and Wakiso District areas.
- * Uses Haversine great-circle formula calibrated to the Greater Kampala Metropolitan Area (GKMA)
- * road network (Northern Bypass, Entebbe Expressway, Jinja Rd, Bombo Rd, Masaka Rd, and local grids):
+ * Estimates baseline road distance (km) on roads of Kampala and Wakiso District areas
+ * for offline unit calculation:
  * - Expressway / Long Corridor (> 20 km, e.g. Kampala to Entebbe): 1.30x
  * - Inter-district Metro Arterials (8 - 20 km, e.g. Kampala to Kira, Nansana, Buloba, Kajjansi): 1.36x
  * - Local Urban & Suburb Streets (<= 8 km, e.g. Central to Ntinda, Kololo, Bugolobi): 1.38x
@@ -392,11 +391,11 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
 }
 
 /**
- * LIVE DYNAMIC PRICING ENGINE WITH GEOCODING & OSRM ROAD ROUTING:
+ * LIVE DYNAMIC PRICING ENGINE WITH MAPBOX GEOCODING & DRIVING ROUTING:
  * 1. Takes typed addresses (or pre-resolved coordinates).
- * 2. Geocodes using Nominatim with Uganda scope.
+ * 2. Geocodes using Mapbox Geocoding API v5 with Uganda scope.
  * 3. Detects location ambiguity and prompts customer for clarification.
- * 4. Gets actual road distance & ETA from OSRM live routing.
+ * 4. Gets actual road distance & ETA from Mapbox Directions API v5.
  * 5. Applies active pricing rules from database.
  */
 async function calculateLiveDeliveryQuote({
@@ -511,8 +510,8 @@ async function calculateLiveDeliveryQuote({
     duration_minutes,
     eta_text,
     route_type,
-    route_source: route.source,
-    map_provider: route.provider || mapService.getMapProvider(),
+    route_source: route.source || 'Mapbox Directions API (Driving)',
+    map_provider: 'mapbox',
     origin: {
       address: pickup,
       title: originLocation.title,
