@@ -144,7 +144,20 @@ router.get('/events', (req, res) => {
       LIMIT 30
     `).all();
 
-    res.json(historyEvents);
+    const formattedEvents = historyEvents.map(h => ({
+      id: h.id,
+      delivery_id: h.delivery_id,
+      tracking_number: h.tracking_number,
+      status: h.status,
+      type: h.status ? h.status.toLowerCase().replace(/\s+/g, '_') : 'delivery',
+      message: `${h.tracking_number}: ${h.status}${h.note ? ' — ' + h.note : ''}`,
+      note: h.note,
+      updated_by: h.updated_by,
+      timestamp: h.timestamp,
+      event_type: h.event_type || 'delivery'
+    }));
+
+    res.json(formattedEvents);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

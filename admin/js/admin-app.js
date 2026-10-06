@@ -483,18 +483,24 @@
 
         // Render Live Event Stream
         const eventList = document.getElementById('dashboardEventList');
-        if (events && events.length > 0) {
-          eventList.innerHTML = events.slice(0, 15).map(ev => `
-            <div style="padding:0.65rem 0.85rem; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:0.8rem; display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <span class="admin-badge ${this.getBadgeClass(ev.type)}" style="font-size:0.675rem; margin-right:0.4rem;">${ev.type.replace(/_/g, ' ')}</span>
-                <span style="color:var(--text-main); font-weight:600;">${this.escapeHtml(ev.message)}</span>
-              </div>
-              <span style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-dim);">${this.formatTime(ev.timestamp)}</span>
-            </div>
-          `).join('');
-        } else {
-          eventList.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1.5rem 0;">No recent system events.</div>';
+        if (eventList) {
+          if (events && events.length > 0) {
+            eventList.innerHTML = events.slice(0, 15).map(ev => {
+              const evType = ev.type || ev.status || ev.event_type || 'Update';
+              const evMsg = ev.message || (ev.tracking_number ? `${ev.tracking_number}: ${ev.status || ''} ${ev.note ? '— ' + ev.note : ''}` : (ev.note || 'Delivery Event'));
+              return `
+                <div style="padding:0.65rem 0.85rem; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:0.8rem; display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <span class="admin-badge ${this.getBadgeClass(evType)}" style="font-size:0.675rem; margin-right:0.4rem;">${this.escapeHtml(String(evType).replace(/_/g, ' '))}</span>
+                    <span style="color:var(--text-main); font-weight:600;">${this.escapeHtml(evMsg)}</span>
+                  </div>
+                  <span style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-dim);">${this.formatTime(ev.timestamp)}</span>
+                </div>
+              `;
+            }).join('');
+          } else {
+            eventList.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1.5rem 0;">No recent system events.</div>';
+          }
         }
 
         // Render Priority Dispatch Queue (unassigned or awaiting handover)
@@ -1281,9 +1287,11 @@
     }
 
     getBadgeClass(type) {
-      if (type.includes('created') || type.includes('login')) return 'info';
-      if (type.includes('payment') || type.includes('delivered') || type.includes('confirmed')) return 'success';
-      if (type.includes('cancel') || type.includes('failed') || type.includes('error')) return 'danger';
+      if (!type) return 'info';
+      const t = String(type).toLowerCase();
+      if (t.includes('created') || t.includes('login') || t.includes('delivery')) return 'info';
+      if (t.includes('payment') || t.includes('delivered') || t.includes('confirmed') || t.includes('picked') || t.includes('paid')) return 'success';
+      if (t.includes('cancel') || t.includes('failed') || t.includes('error')) return 'danger';
       return 'warning';
     }
 
