@@ -5,7 +5,12 @@
  * and ETA calculations are performed strictly via Mapbox APIs.
  */
 
-require('dotenv').config();
+const path = require('path');
+// Multi-location dotenv loader (root, server directory, or ambient env)
+try { require('dotenv').config({ path: path.resolve(__dirname, '../../.env') }); } catch (e) {}
+try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch (e) {}
+try { require('dotenv').config({ path: path.resolve(__dirname, './.env') }); } catch (e) {}
+try { require('dotenv').config(); } catch (e) {}
 
 // In-memory cache to optimize performance and prevent rate-limiting
 const geocodeCache = new Map();
@@ -82,27 +87,29 @@ function formatMapboxFeature(feature, idx) {
 }
 
 /**
- * Evaluates whether multiple Mapbox candidates represent ambiguous locations
+ * Evaluates whether multiple Mapbox candidates represent truly ambiguous locations
  */
 function evaluateAmbiguity(candidates, cleanQuery) {
-  if (candidates.length <= 1) return false;
+  if (!candidates || candidates.length <= 1) return false;
 
-  const firstLat = candidates[0].lat;
-  const firstLng = candidates[0].lng;
-  let isDistinct = false;
+  const q = (cleanQuery || '').trim().toLowerCase();
 
-  for (let i = 1; i < candidates.length; i++) {
-    const dLat = (candidates[i].lat - firstLat) * 111;
-    const dLng = (candidates[i].lng - firstLng) * 111 * Math.cos(firstLat * (Math.PI / 180));
-    const distKm = Math.sqrt(dLat * dLat + dLng * dLng);
-    if (distKm > 3.5 || (candidates[i].district && candidates[0].district && candidates[i].district !== candidates[0].district)) {
-      isDistinct = true;
-      break;
-    }
+  // 1. Single generic terms without specific area are ambiguous
+  const isGenericTerm = /^(market|church|school|hospital|plaza|mall|stage|petrol|station|bank|hotel|mosque|centre|center|clinic|arcade)$/i.test(q);
+  if (isGenericTerm) return true;
+
+  // 2. Specific multi-word addresses with district/road specifications resolve directly
+  if (q.split(/\s+/).length >= 3) {
+    return false;
   }
 
-  const isGenericTerm = /^(market|church|school|hospital|plaza|mall|stage|petrol|station|bank|hotel|mosque|centre|center|clinic|arcade)$/i.test(cleanQuery.trim());
-  return isDistinct || isGenericTerm;
+  // 3. Known ambiguous landmark names in Uganda metropolitan areas
+  const knownAmbiguousTerms = ['clock tower', 'golf course', 'post office', 'taxi park', 'bus park', 'main market'];
+  if (knownAmbiguousTerms.some(term => q.includes(term))) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

@@ -1,7 +1,9 @@
-require('dotenv').config();
+const path = require('path');
+try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch (e) {}
+try { require('dotenv').config({ path: path.resolve(__dirname, './.env') }); } catch (e) {}
+try { require('dotenv').config(); } catch (e) {}
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const { initDatabase } = require('./db');
 const { getActivePricingRules } = require('./pricing');
 
