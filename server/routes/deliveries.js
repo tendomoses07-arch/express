@@ -50,7 +50,19 @@ router.get('/suggestions', async (req, res) => {
   }
 });
 
-// 1. Calculate Delivery Quote (Public endpoint for live geocoding, OSRM road distance, ETA & rate preview)
+// 0b. Live Map Provider & Config Endpoint
+router.get('/map-config', (req, res) => {
+  const { getMapboxToken, getMapProvider } = require('../services/mapService');
+  const token = getMapboxToken();
+  res.json({
+    provider: getMapProvider(),
+    has_mapbox_token: !!token,
+    mapbox_token_preview: token ? `${token.substring(0, 8)}...` : null,
+    region: 'Uganda'
+  });
+});
+
+// 1. Calculate Delivery Quote (Public endpoint for live geocoding, Mapbox road distance, ETA & rate preview)
 router.post('/quote', async (req, res) => {
   try {
     const {

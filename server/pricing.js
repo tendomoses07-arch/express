@@ -512,6 +512,7 @@ async function calculateLiveDeliveryQuote({
     eta_text,
     route_type,
     route_source: route.source,
+    map_provider: route.provider || mapService.getMapProvider(),
     origin: {
       address: pickup,
       title: originLocation.title,
