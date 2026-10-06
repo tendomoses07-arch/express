@@ -145,7 +145,7 @@
   <!-- ===================================================================
        WHOLE SITE INTERFACE WRAPPER (GATED FOR REGISTERED USERS)
        =================================================================== -->
-  <div id="siteContentWrap" style="display: none;">
+  <div id="siteContentWrap" class="site-content-wrap" style="display: none;">
 
   <!-- ===================================================================
        TOP DEMO / ROLE SWITCHER BAR (Instant 1-Click Evaluation)
@@ -217,6 +217,7 @@
       </div>
     </div>
   </header>
+  <div class="nav-backdrop" id="navBackdrop" style="display: none;"></div>
 
   <!-- ===================================================================
        VIEW 1: CUSTOMER HOME & REQUEST APP
@@ -785,7 +786,7 @@
   <!-- ===================================================================
        VIEW 3: CUSTOMER ACCOUNT VIEW
        =================================================================== -->
-  <section id="view-account" class="container" style="display: none; padding: 3rem 1.25rem;">
+  <section id="view-account" class="container account-section" style="display: none;">
     <div style="max-width: 600px; margin: 0 auto;">
       
       <!-- Account Auth (Logged Out State) -->
@@ -1031,7 +1032,7 @@
 
       <div class="footer-bottom">
         <div>&copy; 2026 Kola Express. All rights reserved. Kampala, Uganda.</div>
-        <div style="display: flex; gap: 1rem;">
+        <div class="footer-bottom-links">
           <span>Privacy Policy</span>
           <span>Terms of Delivery</span>
           <span>Support: 0700-KOLA-EXP</span>

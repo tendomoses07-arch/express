@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      if (navMenu) navMenu.classList.remove('mobile-open');
+      closeMobileNav();
 
       const reqSection = document.getElementById('requestSection');
       if (reqSection) {
@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    if (navMenu) navMenu.classList.remove('mobile-open');
+    closeMobileNav();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Handle view-specific initialization
@@ -279,17 +279,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const navBackdrop = document.getElementById('navBackdrop');
+
+  function openMobileNav() {
+    if (navMenu) navMenu.classList.add('mobile-open');
+    if (navBackdrop) navBackdrop.style.display = 'block';
+    if (mobileNavToggle) mobileNavToggle.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMobileNav() {
+    if (navMenu) navMenu.classList.remove('mobile-open');
+    if (navBackdrop) navBackdrop.style.display = 'none';
+    if (mobileNavToggle) mobileNavToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleMobileNav() {
+    if (navMenu && navMenu.classList.contains('mobile-open')) {
+      closeMobileNav();
+    } else {
+      openMobileNav();
+    }
+  }
+
   if (mobileNavToggle) {
-    mobileNavToggle.addEventListener('click', () => {
-      navMenu.classList.toggle('mobile-open');
+    mobileNavToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMobileNav();
     });
+  }
+
+  if (navBackdrop) {
+    navBackdrop.addEventListener('click', closeMobileNav);
   }
 
   // Dismiss mobile drawer when any link inside it is tapped
   document.querySelectorAll('.nav-menu a, .nav-menu button').forEach(el => {
     el.addEventListener('click', () => {
-      if (navMenu) navMenu.classList.remove('mobile-open');
+      closeMobileNav();
     });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMobileNav();
   });
 
   // ===================================================================
