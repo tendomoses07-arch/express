@@ -371,7 +371,6 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
 
   return {
     distance_km,
-    rate_per_km: per_km,
     route_type,
     coverage: 'Kampala & Wakiso District Roads',
     origin: p1 ? p1.name : (pickup || 'Origin in Kampala/Wakiso'),
@@ -381,7 +380,6 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
     destination_district: d2,
     destination_region: p2 ? p2.region : 'Central',
     base_fee,
-    per_km_rate: per_km,
     distance_fee,
     category,
     category_fee: 0,
