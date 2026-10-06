@@ -106,13 +106,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (brandTagline) brandTagline.textContent = 'Send it. We deliver it.';
       if (roleBarTitle) roleBarTitle.innerHTML = '<span>Delivery Portal:</span>';
 
-      // Pre-fill sender details in delivery request form if default
+      // Pre-fill sender details in delivery request form if customer is logged in and fields are empty
       const senderNameInput = document.getElementById('senderNameInput');
       const senderPhoneInput = document.getElementById('senderPhoneInput');
-      if (senderNameInput && (!senderNameInput.value || senderNameInput.value === 'Sarah Namubiru')) {
+      if (senderNameInput && !senderNameInput.value && user?.full_name) {
         senderNameInput.value = user.full_name;
       }
-      if (senderPhoneInput && user.phone && (!senderPhoneInput.value || senderPhoneInput.value === '0775123456')) {
+      if (senderPhoneInput && !senderPhoneInput.value && user?.phone) {
         senderPhoneInput.value = user.phone;
       }
     }
@@ -683,6 +683,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (errBox) errBox.style.display = 'none';
   }
 
+  function resetQuoteDisplay() {
+    clearQuoteError();
+    currentQuote = null;
+    const distEl = document.getElementById('quoteDistance');
+    if (distEl) distEl.textContent = '—';
+    const etaEl = document.getElementById('quoteEta');
+    if (etaEl) etaEl.textContent = '—';
+    const routeTypeEl = document.getElementById('quoteRouteType');
+    if (routeTypeEl) routeTypeEl.textContent = 'Enter pickup & drop-off';
+    const baseEl = document.getElementById('quoteBaseFee');
+    if (baseEl) baseEl.textContent = '—';
+    const distFeeEl = document.getElementById('quoteDistanceFee');
+    if (distFeeEl) distFeeEl.textContent = '—';
+    const totalEl = document.getElementById('quoteTotalFee');
+    if (totalEl) totalEl.innerHTML = `—<small>UGX</small>`;
+  }
+
   function triggerQuoteRecalculate() {
     clearTimeout(quoteDebounceTimer);
     const liveIndicator = document.getElementById('quoteLiveIndicator');
@@ -694,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isUrgent = document.getElementById('urgentDeliveryToggle')?.checked || false;
 
       if (!pickup || !destination) {
-        clearQuoteError();
+        resetQuoteDisplay();
         return;
       }
 
@@ -912,6 +929,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const res = await window.kolaApi.deliveries.create(payload);
         showToast(`Request created! ID: ${res.delivery.tracking_number}`, 'success');
+
+        // Reset delivery form so input fields return to clean blank state
+        if (deliveryForm) {
+          deliveryForm.reset();
+          selectedPickupCoords = null;
+          selectedDeliveryCoords = null;
+          if (pickupPill) pickupPill.style.display = 'none';
+          if (deliveryPill) deliveryPill.style.display = 'none';
+          updateAddressClearButtons();
+          resetQuoteDisplay();
+        }
 
         // Open Cashless Payment Modal
         openPaymentModal(res.delivery);

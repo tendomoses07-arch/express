@@ -375,11 +375,11 @@
                 <div class="form-row">
                   <div class="form-group">
                     <label for="senderNameInput">Sender Full Name <span class="req">*</span></label>
-                    <input type="text" id="senderNameInput" class="form-input" placeholder="e.g. Sarah Namubiru" value="Sarah Namubiru" required>
+                    <input type="text" id="senderNameInput" class="form-input" placeholder="Enter sender full name" required>
                   </div>
                   <div class="form-group">
                     <label for="senderPhoneInput">Sender Phone (Uganda) <span class="req">*</span></label>
-                    <input type="tel" id="senderPhoneInput" class="form-input" placeholder="e.g. 0775123456" value="0775123456" required>
+                    <input type="tel" id="senderPhoneInput" class="form-input" placeholder="e.g. 0775123456" required>
                   </div>
                 </div>
 
@@ -387,7 +387,7 @@
                   <label for="pickupLocationInput">Type Pickup Address / Landmark <span class="req">*</span></label>
                   <div class="address-input-wrapper">
                     <span class="input-icon-prefix">📍</span>
-                    <input type="text" id="pickupLocationInput" class="form-input address-live-input" placeholder="Type any street, shop, stage, or area (e.g. Acacia Mall, Kireka Town, Plot 14 Kampala Rd)..." value="Kampala Road, Kampala" required autocomplete="off">
+                    <input type="text" id="pickupLocationInput" class="form-input address-live-input" placeholder="Type any street, shop, stage, or area (e.g. Acacia Mall, Kireka Town, Plot 14 Kampala Rd)..." required autocomplete="off">
                     <button type="button" class="clear-address-btn" id="clearPickupBtn" title="Clear address" style="display: none;">✕</button>
                   </div>
                   <div class="location-autocomplete-dropdown" id="pickupSuggestionsDropdown" style="display: none;"></div>
@@ -400,7 +400,7 @@
 
                 <div class="form-group">
                   <label for="pickupDirectionsInput">Detailed Pickup Directions</label>
-                  <textarea id="pickupDirectionsInput" class="form-textarea" placeholder="e.g. Near main post office / building / shop number">Near main commercial centre / shop</textarea>
+                  <textarea id="pickupDirectionsInput" class="form-textarea" placeholder="Detailed pickup directions (e.g. building name, floor, landmark)"></textarea>
                 </div>
 
                 <div class="form-group">
@@ -418,11 +418,11 @@
                 <div class="form-row">
                   <div class="form-group">
                     <label for="recipientNameInput">Recipient Full Name <span class="req">*</span></label>
-                    <input type="text" id="recipientNameInput" class="form-input" placeholder="e.g. John Doe" value="John Doe" required>
+                    <input type="text" id="recipientNameInput" class="form-input" placeholder="Enter recipient full name" required>
                   </div>
                   <div class="form-group">
                     <label for="recipientPhoneInput">Recipient Phone (Uganda) <span class="req">*</span></label>
-                    <input type="tel" id="recipientPhoneInput" class="form-input" placeholder="e.g. 0702987654" value="0702987654" required>
+                    <input type="tel" id="recipientPhoneInput" class="form-input" placeholder="e.g. 0702987654" required>
                   </div>
                 </div>
 
@@ -430,7 +430,7 @@
                   <label for="deliveryLocationInput">Type Drop-off / Destination Address <span class="req">*</span></label>
                   <div class="address-input-wrapper">
                     <span class="input-icon-prefix">🏁</span>
-                    <input type="text" id="deliveryLocationInput" class="form-input address-live-input" placeholder="Type destination building, stage, or area (e.g. Victoria Mall Entebbe, Kira Town, Naalya)..." value="Entebbe International Airport" required autocomplete="off">
+                    <input type="text" id="deliveryLocationInput" class="form-input address-live-input" placeholder="Type destination building, stage, or area (e.g. Victoria Mall Entebbe, Kira Town, Naalya)..." required autocomplete="off">
                     <button type="button" class="clear-address-btn" id="clearDeliveryBtn" title="Clear address" style="display: none;">✕</button>
                   </div>
                   <div class="location-autocomplete-dropdown" id="deliverySuggestionsDropdown" style="display: none;"></div>
@@ -443,12 +443,12 @@
 
                 <div class="form-group">
                   <label for="deliveryDirectionsInput">Detailed Delivery Directions</label>
-                  <textarea id="deliveryDirectionsInput" class="form-textarea" placeholder="e.g. Block B, Main Street office / landmark">Main road commercial office / premises</textarea>
+                  <textarea id="deliveryDirectionsInput" class="form-textarea" placeholder="Detailed delivery directions (e.g. block name, office/flat number)"></textarea>
                 </div>
 
                 <div class="form-group">
                   <label for="deliveryNotesInput">Optional Delivery Instructions</label>
-                  <input type="text" id="deliveryNotesInput" class="form-input" placeholder="e.g. Call recipient upon arrival" value="Call recipient upon arrival">
+                  <input type="text" id="deliveryNotesInput" class="form-input" placeholder="e.g. Call recipient upon arrival">
                 </div>
               </fieldset>
 
@@ -460,7 +460,7 @@
 
                 <div class="form-group">
                   <label for="itemDescriptionInput">Item / Package Description <span class="req">*</span></label>
-                  <input type="text" id="itemDescriptionInput" class="form-input" placeholder="e.g. Business documents, Parcel, Spare parts, Electronics" value="Commercial parcel & business documentation" required>
+                  <input type="text" id="itemDescriptionInput" class="form-input" placeholder="e.g. Documents, Parcel, Box, Spare parts, Electronics" required>
                 </div>
 
                 <div class="form-group">
@@ -518,7 +518,7 @@
 
                 <div class="form-group">
                   <label for="specialInstructionsInput">Special Handling Instructions</label>
-                  <input type="text" id="specialInstructionsInput" class="form-input" placeholder="e.g. Keep upright, handle with care, keep dry" value="Handle with care">
+                  <input type="text" id="specialInstructionsInput" class="form-input" placeholder="e.g. Keep upright, handle with care, keep dry">
                 </div>
 
                 <!-- Urgent Express Toggle -->
@@ -562,23 +562,23 @@
             <ul class="quote-breakdown-list">
               <li class="quote-item">
                 <span>Estimated Road Distance:</span>
-                <strong id="quoteDistance">42.9 km</strong>
+                <strong id="quoteDistance">—</strong>
               </li>
               <li class="quote-item" id="quoteEtaRow">
                 <span>Estimated Road Travel Time (ETA):</span>
-                <strong id="quoteEta" style="color:var(--kola-blue-dark);">~38 mins</strong>
+                <strong id="quoteEta" style="color:var(--kola-blue-dark);">—</strong>
               </li>
               <li class="quote-item" id="quoteRouteRow">
                 <span>Route Classification:</span>
-                <strong id="quoteRouteType" style="color:var(--kola-blue-dark); font-size:0.8rem;">Live Driving Route</strong>
+                <strong id="quoteRouteType" style="color:var(--kola-blue-dark); font-size:0.8rem;">Enter pickup &amp; drop-off</strong>
               </li>
               <li class="quote-item">
                 <span>Base Dispatch Fee:</span>
-                <strong id="quoteBaseFee">UGX 4,000</strong>
+                <strong id="quoteBaseFee">—</strong>
               </li>
               <li class="quote-item">
                 <span>Dynamic Road Distance Fee:</span>
-                <strong id="quoteDistanceFee">UGX 37,000</strong>
+                <strong id="quoteDistanceFee">—</strong>
               </li>
               <li class="quote-item" id="quoteCategoryRow" style="display:none;">
                 <span>Package Surcharge:</span>
@@ -592,7 +592,7 @@
 
             <div class="quote-total-box">
               <div class="total-label">Total Delivery Fee:</div>
-              <div class="total-amount" id="quoteTotalFee">41,000<small>UGX</small></div>
+              <div class="total-amount" id="quoteTotalFee">—<small>UGX</small></div>
             </div>
 
             <div class="cashless-notice">
@@ -624,7 +624,7 @@
         </p>
 
         <div class="lookup-input-group">
-          <input type="text" id="trackNumberInput" class="lookup-input" placeholder="e.g. KOLA-20261005-000123" value="KOLA-20261005-000123">
+          <input type="text" id="trackNumberInput" class="lookup-input" placeholder="e.g. KOLA-20261005-000123">
           <button class="btn-primary" id="trackLookupBtn">
             <span>Track Delivery</span>
           </button>
@@ -646,13 +646,13 @@
           <div>
             <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Tracking Number</div>
             <div class="tracking-id-tag">
-              <span id="trackDisplayId">KOLA-20261005-000123</span>
+              <span id="trackDisplayId">—</span>
               <button class="copy-btn" id="copyTrackingBtn">Copy</button>
             </div>
           </div>
           <div style="text-align: right;">
             <div style="font-size: 0.8rem; color: var(--text-muted);">Request Date</div>
-            <div style="font-weight: 600;" id="trackDisplayDate">October 5, 2026</div>
+            <div style="font-weight: 600;" id="trackDisplayDate">—</div>
           </div>
         </div>
 
@@ -752,30 +752,30 @@
             <div class="track-card-head">
               <span>Pickup Point</span>
             </div>
-            <div class="track-card-name" id="trackSenderName">Sarah Namubiru</div>
-            <div class="track-card-phone" id="trackSenderPhone">0775123456</div>
-            <div class="track-card-location" id="trackPickupLocation">Kikuubo Commercial Plaza, Downtown</div>
-            <div class="track-card-notes" id="trackPickupDirections">Ground floor, shop G-14</div>
+            <div class="track-card-name" id="trackSenderName">—</div>
+            <div class="track-card-phone" id="trackSenderPhone">—</div>
+            <div class="track-card-location" id="trackPickupLocation">—</div>
+            <div class="track-card-notes" id="trackPickupDirections">—</div>
           </div>
 
           <div class="track-card">
             <div class="track-card-head" style="color: var(--emerald-green);">
               <span>Delivery Destination</span>
             </div>
-            <div class="track-card-name" id="trackRecipientName">John Doe</div>
-            <div class="track-card-phone" id="trackRecipientPhone">0702987654</div>
-            <div class="track-card-location" id="trackDeliveryLocation">Ntinda Complex, Ntinda Road</div>
-            <div class="track-card-notes" id="trackDeliveryDirections">Block B, 2nd floor, Tech Hub office</div>
+            <div class="track-card-name" id="trackRecipientName">—</div>
+            <div class="track-card-phone" id="trackRecipientPhone">—</div>
+            <div class="track-card-location" id="trackDeliveryLocation">—</div>
+            <div class="track-card-notes" id="trackDeliveryDirections">—</div>
           </div>
 
           <div class="track-card">
             <div class="track-card-head">
               <span>Package &amp; Payment</span>
             </div>
-            <div class="track-card-name" id="trackItemDesc">Legal Documents &amp; Stamp</div>
-            <div class="track-card-phone" id="trackItemCategory">DOCUMENT</div>
-            <div class="track-card-location" id="trackDeliveryFee">UGX 12,500 (MTN Mobile Money)</div>
-            <div class="track-card-notes" id="trackItemNotes">Keep documents flat and dry in sleeve</div>
+            <div class="track-card-name" id="trackItemDesc">—</div>
+            <div class="track-card-phone" id="trackItemCategory">—</div>
+            <div class="track-card-location" id="trackDeliveryFee">—</div>
+            <div class="track-card-notes" id="trackItemNotes">—</div>
           </div>
 
         </div>
@@ -848,8 +848,8 @@
         <div class="form-card" style="margin-bottom: 2rem;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h2 id="accountUserName" style="font-size: 1.35rem;">Sarah Namubiru</h2>
-              <div id="accountUserPhone" style="color: var(--kola-blue-dark); font-size: 0.9rem; font-weight: 700;">0775123456</div>
+              <h2 id="accountUserName" style="font-size: 1.35rem;">Customer Account</h2>
+              <div id="accountUserPhone" style="color: var(--kola-blue-dark); font-size: 0.9rem; font-weight: 700;">—</div>
             </div>
             <button class="btn-secondary logout-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Log Out</button>
           </div>
