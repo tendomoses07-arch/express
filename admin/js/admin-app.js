@@ -433,28 +433,29 @@
           this.loadDashboard(silent);
           break;
         case 'deliveries':
-          this.loadDeliveries();
+          this.loadDeliveries(silent);
           break;
         case 'couriers':
-          this.loadCouriers();
+          this.loadCouriers(silent);
           break;
         case 'customers':
-          this.loadCustomers();
+          const custSearch = document.getElementById('customersSearchInput')?.value || '';
+          this.loadCustomers(custSearch, silent);
           break;
         case 'payments':
-          this.loadPayments();
+          this.loadPayments(silent);
           break;
         case 'reports':
-          this.loadReports();
+          this.loadReports(silent);
           break;
         case 'pricing':
-          this.loadPricing();
+          this.loadPricing(silent);
           break;
         case 'audit':
-          this.loadAuditLogs();
+          this.loadAuditLogs(silent);
           break;
         case 'staff':
-          this.loadStaff();
+          this.loadStaff(silent);
           break;
       }
     }
@@ -525,19 +526,23 @@
     }
 
     // 2. DELIVERIES
-    async loadDeliveries() {
-      const status = document.getElementById('deliveriesStatusFilter').value;
-      const search = document.getElementById('deliveriesSearchInput').value.trim();
+    async loadDeliveries(silent = false) {
+      const status = document.getElementById('deliveriesStatusFilter')?.value || 'all';
+      const search = document.getElementById('deliveriesSearchInput')?.value.trim() || '';
       const tbody = document.getElementById('deliveriesTableBody');
 
       try {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:2rem; color:var(--text-muted);">Fetching deliveries from database...</td></tr>';
+        if (!silent && tbody) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:2rem; color:var(--text-muted);">Fetching deliveries from database...</td></tr>';
+        }
         const data = await adminApi.deliveries.list(status, search);
         this.deliveries = data || [];
         this.renderDeliveriesTable();
-        this.updateOperationsDispatchControls();
+        this.updateOperationsDispatchControls(silent);
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:2rem; color:#f87171;">Error loading deliveries: ${this.escapeHtml(err.message)}</td></tr>`;
+        if (!silent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:2rem; color:#f87171;">Error loading deliveries: ${this.escapeHtml(err.message)}</td></tr>`;
+        }
       }
     }
 
@@ -608,15 +613,19 @@
     }
 
     // 3. COURIERS
-    async loadCouriers() {
+    async loadCouriers(silent = false) {
       const tbody = document.getElementById('couriersTableBody');
       try {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading couriers...</td></tr>';
+        if (!silent && tbody) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading couriers...</td></tr>';
+        }
         const data = await adminApi.couriers.list();
         this.couriers = data || [];
         this.renderCouriersTable();
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:#f87171;">Failed to load couriers: ${this.escapeHtml(err.message)}</td></tr>`;
+        if (!silent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:#f87171;">Failed to load couriers: ${this.escapeHtml(err.message)}</td></tr>`;
+        }
       }
     }
 
@@ -684,15 +693,19 @@
     }
 
     // 4. CUSTOMERS
-    async loadCustomers(search = '') {
+    async loadCustomers(search = '', silent = false) {
       const tbody = document.getElementById('customersTableBody');
       try {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading customers...</td></tr>';
+        if (!silent && tbody) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading customers...</td></tr>';
+        }
         const data = await adminApi.customers.list(search);
         this.customers = data || [];
         this.renderCustomersTable();
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171;">Failed to load customers: ${this.escapeHtml(err.message)}</td></tr>`;
+        if (!silent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171;">Failed to load customers: ${this.escapeHtml(err.message)}</td></tr>`;
+        }
       }
     }
 
@@ -774,39 +787,45 @@
     }
 
     // 5. PAYMENTS LEDGER
-    async loadPayments() {
-      const status = document.getElementById('paymentsStatusFilter').value;
+    async loadPayments(silent = false) {
+      const status = document.getElementById('paymentsStatusFilter')?.value || 'all';
       const tbody = document.getElementById('paymentsTableBody');
       try {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading payment transactions...</td></tr>';
+        if (!silent && tbody) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading payment transactions...</td></tr>';
+        }
         const data = await adminApi.finance.getPayments(status);
         if (!data || data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No payment records in ledger.</td></tr>';
+          if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No payment records in ledger.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = data.map(p => `
-          <tr>
-            <td style="font-family:var(--font-mono); font-weight:700; color:#38bdf8;">${this.escapeHtml(p.transaction_ref || 'TRX-' + p.id)}</td>
-            <td style="font-family:var(--font-mono); font-weight:700; color:#60a5fa;">#${p.delivery_id}</td>
-            <td>
-              <div style="font-weight:600;">${this.escapeHtml(p.customer_name || 'Customer')}</div>
-              <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">${this.escapeHtml(p.customer_phone || '')}</div>
-            </td>
-            <td style="font-weight:800; font-size:0.95rem; color:#34d399;">UGX ${(p.amount || 0).toLocaleString()}</td>
-            <td>
-              <span class="admin-badge secondary">${this.escapeHtml(p.payment_method || 'MTN / Airtel MoMo')}</span>
-            </td>
-            <td style="font-size:0.775rem; color:var(--text-dim);">${this.formatDate(p.created_at)}</td>
-            <td>
-              <span class="admin-badge ${p.payment_status === 'paid' ? 'success' : (p.payment_status === 'pending' ? 'warning' : 'danger')}">
-                ${p.payment_status === 'paid' ? '✓ Successful' : (p.payment_status || 'Pending')}
-              </span>
-            </td>
-          </tr>
-        `).join('');
+        if (tbody) {
+          tbody.innerHTML = data.map(p => `
+            <tr>
+              <td style="font-family:var(--font-mono); font-weight:700; color:#38bdf8;">${this.escapeHtml(p.transaction_ref || 'TRX-' + p.id)}</td>
+              <td style="font-family:var(--font-mono); font-weight:700; color:#60a5fa;">#${p.delivery_id}</td>
+              <td>
+                <div style="font-weight:600;">${this.escapeHtml(p.customer_name || 'Customer')}</div>
+                <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">${this.escapeHtml(p.customer_phone || '')}</div>
+              </td>
+              <td style="font-weight:800; font-size:0.95rem; color:#34d399;">UGX ${(p.amount || 0).toLocaleString()}</td>
+              <td>
+                <span class="admin-badge secondary">${this.escapeHtml(p.payment_method || 'MTN / Airtel MoMo')}</span>
+              </td>
+              <td style="font-size:0.775rem; color:var(--text-dim);">${this.formatDate(p.created_at)}</td>
+              <td>
+                <span class="admin-badge ${p.payment_status === 'paid' ? 'success' : (p.payment_status === 'pending' ? 'warning' : 'danger')}">
+                  ${p.payment_status === 'paid' ? '✓ Successful' : (p.payment_status || 'Pending')}
+                </span>
+              </td>
+            </tr>
+          `).join('');
+        }
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171;">Failed to load payments: ${this.escapeHtml(err.message)}</td></tr>`;
+        if (!silent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171;">Failed to load payments: ${this.escapeHtml(err.message)}</td></tr>`;
+        }
       }
     }
 
@@ -879,71 +898,83 @@
     }
 
     // 8. AUDIT LOGS
-    async loadAuditLogs() {
+    async loadAuditLogs(silent = false) {
       const tbody = document.getElementById('auditLogsTableBody');
       try {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading immutable audit log trail...</td></tr>';
+        if (!silent && tbody) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading immutable audit log trail...</td></tr>';
+        }
         const logs = await adminApi.audit.getLogs();
         if (!logs || logs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No audit events recorded yet.</td></tr>';
+          if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No audit events recorded yet.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = logs.map(l => `
-          <tr>
-            <td style="font-family:var(--font-mono); font-size:0.775rem; color:var(--text-dim);">${this.formatDate(l.created_at)}</td>
-            <td style="font-weight:700;">${this.escapeHtml(l.admin_name || 'Admin #' + l.admin_id)}</td>
-            <td><span class="admin-badge info">${this.escapeHtml(l.admin_role || 'admin')}</span></td>
-            <td style="font-weight:600; color:#f8fafc;">${this.escapeHtml(l.action)}</td>
-            <td style="font-family:var(--font-mono); font-size:0.8rem; color:#93c5fd;">${this.escapeHtml(l.resource || '—')}</td>
-            <td style="font-family:var(--font-mono); font-size:0.8rem;">#${this.escapeHtml(l.resource_id || '—')}</td>
-            <td style="font-size:0.8rem; color:var(--text-muted); max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escapeHtml(l.details || '')}">
-              ${this.escapeHtml(l.details || '—')}
-            </td>
-          </tr>
-        `).join('');
+        if (tbody) {
+          tbody.innerHTML = logs.map(l => `
+            <tr>
+              <td style="font-family:var(--font-mono); font-size:0.775rem; color:var(--text-dim);">${this.formatDate(l.created_at)}</td>
+              <td style="font-weight:700;">${this.escapeHtml(l.admin_name || 'Admin #' + l.admin_id)}</td>
+              <td><span class="admin-badge info">${this.escapeHtml(l.admin_role || 'admin')}</span></td>
+              <td style="font-weight:600; color:#f8fafc;">${this.escapeHtml(l.action)}</td>
+              <td style="font-family:var(--font-mono); font-size:0.8rem; color:#93c5fd;">${this.escapeHtml(l.resource || '—')}</td>
+              <td style="font-family:var(--font-mono); font-size:0.8rem;">#${this.escapeHtml(l.resource_id || '—')}</td>
+              <td style="font-size:0.8rem; color:var(--text-muted); max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escapeHtml(l.details || '')}">
+                ${this.escapeHtml(l.details || '—')}
+              </td>
+            </tr>
+          `).join('');
+        }
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171;">Failed to load audit logs: ${this.escapeHtml(err.message)}</td></tr>`;
+        if (!silent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171;">Failed to load audit logs: ${this.escapeHtml(err.message)}</td></tr>`;
+        }
       }
     }
 
     // 9. ADMIN STAFF
-    async loadStaff() {
+    async loadStaff(silent = false) {
       const tbody = document.getElementById('staffTableBody');
       try {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading staff directory...</td></tr>';
+        if (!silent && tbody) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Loading staff directory...</td></tr>';
+        }
         const staff = await adminApi.staff.list();
         if (!staff || staff.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No administrative staff records found.</td></tr>';
+          if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No administrative staff records found.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = staff.map(s => `
-          <tr>
-            <td style="font-family:var(--font-mono); font-weight:700;">#${s.id}</td>
-            <td style="font-weight:700;">${this.escapeHtml(s.name)}</td>
-            <td>${this.escapeHtml(s.email || '—')}</td>
-            <td style="font-family:var(--font-mono); font-size:0.8rem;">${this.escapeHtml(s.phone || '—')}</td>
-            <td>
-              <span class="admin-badge ${s.admin_role === 'super_admin' ? 'danger' : (s.admin_role === 'operations_admin' ? 'info' : 'warning')}">
-                ${s.admin_role.replace('_', ' ').toUpperCase()}
-              </span>
-            </td>
-            <td>
-              <span class="admin-badge ${s.is_active ? 'success' : 'danger'}">
-                ${s.is_active ? 'Active' : 'Suspended'}
-              </span>
-            </td>
-            <td style="font-size:0.75rem; color:var(--text-dim);">${this.formatDate(s.created_at)}</td>
-            <td>
-              <button class="btn btn-secondary btn-sm" onclick="window.adminApp.toggleStaffStatus(${s.id})">
-                ${s.is_active ? 'Suspend' : 'Activate'}
-              </button>
-            </td>
-          </tr>
-        `).join('');
+        if (tbody) {
+          tbody.innerHTML = staff.map(s => `
+            <tr>
+              <td style="font-family:var(--font-mono); font-weight:700;">#${s.id}</td>
+              <td style="font-weight:700;">${this.escapeHtml(s.name)}</td>
+              <td>${this.escapeHtml(s.email || '—')}</td>
+              <td style="font-family:var(--font-mono); font-size:0.8rem;">${this.escapeHtml(s.phone || '—')}</td>
+              <td>
+                <span class="admin-badge ${s.admin_role === 'super_admin' ? 'danger' : (s.admin_role === 'operations_admin' ? 'info' : 'warning')}">
+                  ${s.admin_role.replace('_', ' ').toUpperCase()}
+                </span>
+              </td>
+              <td>
+                <span class="admin-badge ${s.is_active ? 'success' : 'danger'}">
+                  ${s.is_active ? 'Active' : 'Suspended'}
+                </span>
+              </td>
+              <td style="font-size:0.75rem; color:var(--text-dim);">${this.formatDate(s.created_at)}</td>
+              <td>
+                <button class="btn btn-secondary btn-sm" onclick="window.adminApp.toggleStaffStatus(${s.id})">
+                  ${s.is_active ? 'Suspend' : 'Activate'}
+                </button>
+              </td>
+            </tr>
+          `).join('');
+        }
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:#f87171;">Failed to load staff: ${this.escapeHtml(err.message)}</td></tr>`;
+        if (!silent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:#f87171;">Failed to load staff: ${this.escapeHtml(err.message)}</td></tr>`;
+        }
       }
     }
 
@@ -1157,12 +1188,15 @@
       }
     }
 
-    async updateOperationsDispatchControls() {
+    async updateOperationsDispatchControls(silent = false) {
       const fastDeliverySelect = document.getElementById('opsFastDeliverySelect');
       const fastCourierSelect = document.getElementById('opsFastCourierSelect');
       const badge = document.getElementById('opsAvailableBadge');
 
       if (!fastDeliverySelect || !fastCourierSelect) return;
+
+      const savedDeliveryVal = fastDeliverySelect.value;
+      const savedCourierVal = fastCourierSelect.value;
 
       try {
         const availableCouriers = await adminApi.couriers.listAvailable();
@@ -1177,6 +1211,9 @@
                 ${this.escapeHtml(c.full_name || c.name)} (${this.escapeHtml(c.vehicle_plate || c.plate_number)}) — ${c.active_tasks || 0} active tasks
               </option>
             `).join('');
+          if (savedCourierVal) {
+            fastCourierSelect.value = savedCourierVal;
+          }
         } else {
           fastCourierSelect.innerHTML = '<option value="">No active couriers available</option>';
         }
@@ -1191,6 +1228,9 @@
               #${d.id} • ${d.tracking_number} [${d.courier_name ? 'Assigned: ' + this.escapeHtml(d.courier_name) : '⚡ Unassigned'}] ➔ ${this.escapeHtml(d.dropoff_location || d.delivery_location || '')}
             </option>
           `).join('');
+        if (savedDeliveryVal) {
+          fastDeliverySelect.value = savedDeliveryVal;
+        }
       } catch (err) {
         console.warn('Could not update operations dispatch controls:', err.message);
       }
