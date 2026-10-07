@@ -327,7 +327,9 @@ const api = {
 
     on(event, callback) {
       if (!this.listeners[event]) this.listeners[event] = [];
-      this.listeners[event].push(callback);
+      if (!this.listeners[event].includes(callback)) {
+        this.listeners[event].push(callback);
+      }
       return () => this.off(event, callback);
     },
 

@@ -260,7 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const activeSection = document.getElementById('activeDeliverySection');
       if (activeSection) activeSection.style.display = 'none';
       initCourierView();
-      loadCourierTasks();
     } else if (viewName === 'account') {
       initAccountView();
     }
@@ -1422,21 +1421,53 @@ document.addEventListener('DOMContentLoaded', () => {
         checkAuthAndEnforceGate();
         initRealtimeManager();
         switchView('courier');
-        initCourierView();
-        loadCourierTasks();
       } catch (err) {
         showToast(err.message, 'error');
       }
     });
   }
 
-  async function loadCourierTasks() {
+  let courierTasksDebounceTimer = null;
+  let isCourierTasksFetching = false;
+  let pendingCourierTasksFetch = false;
+  let lastCourierTasksSignature = '';
+
+  function loadCourierTasks(force = false) {
+    if (force) {
+      clearTimeout(courierTasksDebounceTimer);
+      executeLoadCourierTasks(true);
+      return;
+    }
+
+    clearTimeout(courierTasksDebounceTimer);
+    courierTasksDebounceTimer = setTimeout(() => {
+      executeLoadCourierTasks(false);
+    }, 120);
+  }
+
+  async function executeLoadCourierTasks(force = false) {
     const taskContainer = document.getElementById('courierTasksContainer');
-    taskContainer.innerHTML = '<div style="text-align:center; padding: 2rem;">Loading assigned deliveries...</div>';
+    if (!taskContainer) return;
+
+    if (isCourierTasksFetching) {
+      pendingCourierTasksFetch = true;
+      return;
+    }
+
+    isCourierTasksFetching = true;
+
+    // Check if the container already has cards or content rendered
+    const hasExistingContent = taskContainer.children.length > 0 && taskContainer.innerHTML.trim() !== '';
+
+    // Only render full loading indicator if container is empty or user explicitly requested a force reload
+    if (!hasExistingContent || force) {
+      taskContainer.innerHTML = '<div style="text-align:center; padding: 2.5rem; color:var(--text-muted);"><div class="spinner" style="margin: 0 auto 0.75rem auto; width: 26px; height: 26px; border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--kola-blue); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>Loading assigned deliveries...</div>';
+    }
 
     try {
       const deliveries = await window.kolaApi.courier.getMyDeliveries();
       if (!deliveries || deliveries.length === 0) {
+        lastCourierTasksSignature = 'empty';
         taskContainer.innerHTML = `
           <div class="form-card" style="text-align: center; padding: 3rem;">
             <h3>No deliveries currently assigned.</h3>
@@ -1446,6 +1477,35 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // Compute data signature to detect if any actual delivery state or handover status has changed
+      const newSignature = JSON.stringify(deliveries.map(del => ({
+        id: del.id,
+        status: del.status,
+        courier_confirmed_received: !!del.courier_confirmed_received,
+        sender_confirmed_handover: !!del.sender_confirmed_handover,
+        handover_status: del.handover_status,
+        handover_confirmation_id: del.handover_confirmation_id || '',
+        tracking_number: del.tracking_number
+      })));
+
+      // If data is identical and tasks are already rendered, do NOT wipe or re-render DOM!
+      if (!force && hasExistingContent && newSignature === lastCourierTasksSignature) {
+        return;
+      }
+
+      // Preserve any active input values (like courier entering 4-digit PIN)
+      const savedInputValues = {};
+      let activeElementId = null;
+      if (document.activeElement && document.activeElement.id && document.activeElement.closest('#courierTasksContainer')) {
+        activeElementId = document.activeElement.id;
+      }
+      taskContainer.querySelectorAll('input').forEach(input => {
+        if (input.id && input.value) {
+          savedInputValues[input.id] = input.value;
+        }
+      });
+
+      lastCourierTasksSignature = newSignature;
       taskContainer.innerHTML = '';
       deliveries.forEach(del => {
         const card = document.createElement('div');
@@ -1711,13 +1771,33 @@ document.addEventListener('DOMContentLoaded', () => {
       // Bind Refresh buttons
       taskContainer.querySelectorAll('.task-refresh-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          loadCourierTasks();
+          loadCourierTasks(true);
           showToast('Delivery status refreshed', 'info');
         });
       });
 
+      // Restore preserved inputs and active focus
+      Object.keys(savedInputValues).forEach(id => {
+        const inputEl = document.getElementById(id);
+        if (inputEl) inputEl.value = savedInputValues[id];
+      });
+      if (activeElementId) {
+        const activeEl = document.getElementById(activeElementId);
+        if (activeEl) activeEl.focus();
+      }
+
     } catch (err) {
-      taskContainer.innerHTML = `<div style="color:var(--danger-red); padding: 1.5rem;">${err.message}</div>`;
+      if (!hasExistingContent) {
+        taskContainer.innerHTML = `<div style="color:var(--danger-red); padding: 1.5rem;">${escapeHtml(err.message)}</div>`;
+      } else {
+        console.warn('[Courier Tasks Sync Error]', err.message);
+      }
+    } finally {
+      isCourierTasksFetching = false;
+      if (pendingCourierTasksFetch) {
+        pendingCourierTasksFetch = false;
+        setTimeout(() => executeLoadCourierTasks(false), 80);
+      }
     }
   }
 
@@ -1788,7 +1868,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadCustomerDeliveries() {
     const listContainer = document.getElementById('customerDeliveriesList');
-    listContainer.innerHTML = '<div style="text-align:center; padding:1.5rem;">Loading your delivery requests...</div>';
+    if (!listContainer) return;
+
+    if (listContainer.children.length === 0 || listContainer.innerHTML.trim() === '') {
+      listContainer.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading your delivery requests...</div>';
+    }
 
     try {
       const deliveries = await window.kolaApi.deliveries.list();
@@ -1877,6 +1961,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       window.kolaApi.auth.logout();
       window.kolaApi.realtime.disconnect();
+      isRealtimeManagerInitialized = false;
+      lastCourierTasksSignature = '';
+      const taskContainer = document.getElementById('courierTasksContainer');
+      if (taskContainer) taskContainer.innerHTML = '';
       const activeSec = document.getElementById('activeDeliverySection');
       if (activeSec) activeSec.style.display = 'none';
       showToast('Logged out of Kola Express', 'info');
@@ -2530,11 +2618,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  let isRealtimeManagerInitialized = false;
+
   function initRealtimeManager() {
     const user = window.kolaApi.auth.getUser();
     if (!user) return;
 
     window.kolaApi.realtime.connect();
+
+    if (isRealtimeManagerInitialized) return;
+    isRealtimeManagerInitialized = true;
 
     window.kolaApi.realtime.on('status', ({ status }) => {
       const adRealtimePill = document.getElementById('adRealtimePill');
@@ -2565,8 +2658,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       console.log('⚡ Immediate Realtime Delivery Update:', payload.delivery.tracking_number, payload.delivery.status);
 
-      // Show prominent floating toast notification for important delivery events
-      showDeliveryStatusNotification(payload);
+      // Show prominent floating toast notification for important live delivery events (skip on initial startup payload)
+      if (!payload.is_initial) {
+        showDeliveryStatusNotification(payload);
+      }
 
       // Immediately update the customer's Active Delivery dashboard card (customers/admins only)
       const currentUser = window.kolaApi.auth.getUser();
@@ -2590,7 +2685,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadCustomerDeliveries();
       }
 
-      // If courier or admin, or on Courier Tasks page, refresh courier tasks immediately
+      // If courier or admin, or on Courier Tasks page, refresh courier tasks smoothly
       if (currentUser?.role === 'courier' || currentUser?.role === 'admin' || (views.courier && views.courier.style.display !== 'none')) {
         loadCourierTasks();
       }
@@ -2604,8 +2699,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initRealtimeManager();
     if (user?.role === 'courier') {
       switchView('courier');
-      initCourierView();
-      loadCourierTasks();
     } else {
       switchView('home');
       loadActiveDelivery();

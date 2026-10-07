@@ -542,6 +542,10 @@ class DeliveryRealtimeService extends EventEmitter {
           };
           delete payloadToSend.delivery.delivery_pin;
         }
+        payloadToSend = {
+          ...payloadToSend,
+          is_initial: true
+        };
         res.write(`event: delivery_status_update\ndata: ${JSON.stringify(payloadToSend)}\n\n`);
       }
     } catch (activeErr) {
