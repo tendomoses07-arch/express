@@ -222,14 +222,43 @@ router.post('/', authenticateToken, async (req, res) => {
     const delivery_pin = generateDeliveryPin();
     
     // Resolve & persist customer profile so order history is NEVER lost
-    let customer_id = req.user ? req.user.id : null;
+    let customer_id = null;
     const cleanSenderPhone = senderPhoneCheck.formattedPhone;
 
+    // 1. Verify if req.user.id actually exists in the users table
+    if (req.user && req.user.id) {
+      const dbUserById = db.prepare('SELECT id FROM users WHERE id = ?').get(req.user.id);
+      if (dbUserById) {
+        customer_id = dbUserById.id;
+      }
+    }
+
+    // 2. If token user ID not found in DB, check by clean sender phone
+    if (!customer_id && cleanSenderPhone) {
+      const existingUserByPhone = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanSenderPhone);
+      if (existingUserByPhone) {
+        customer_id = existingUserByPhone.id;
+      }
+    }
+
+    // 3. If still not found, check by token phone or token email
+    if (!customer_id && req.user) {
+      if (req.user.phone) {
+        const pCheck = sanitizeAndValidateUgandaPhone(req.user.phone);
+        if (pCheck.valid) {
+          const byPhone = db.prepare('SELECT id FROM users WHERE phone = ?').get(pCheck.formattedPhone);
+          if (byPhone) customer_id = byPhone.id;
+        }
+      }
+      if (!customer_id && req.user.email) {
+        const byEmail = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(req.user.email);
+        if (byEmail) customer_id = byEmail.id;
+      }
+    }
+
+    // 4. If user does NOT exist anywhere in users table, create a customer record
     if (!customer_id) {
-      const existingUser = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanSenderPhone);
-      if (existingUser) {
-        customer_id = existingUser.id;
-      } else {
+      try {
         const bcrypt = require('bcryptjs');
         const defaultCustPass = bcrypt.hashSync('customer123', 10);
         const ins = db.prepare(`
@@ -237,6 +266,19 @@ router.post('/', authenticateToken, async (req, res) => {
           VALUES (?, ?, ?, 'customer')
         `).run(sender_name.trim(), cleanSenderPhone, defaultCustPass);
         customer_id = ins.lastInsertRowid;
+      } catch (insertErr) {
+        const fallback = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanSenderPhone);
+        customer_id = fallback ? fallback.id : null;
+      }
+    }
+
+    // 5. ABSOLUTE FOREIGN KEY INTEGRITY GUARANTEE:
+    // Verify that customer_id exists in users table. If not, set to null (deliveries.customer_id is nullable)
+    // so SQLite FOREIGN KEY constraint will NEVER fail!
+    if (customer_id) {
+      const verifyRow = db.prepare('SELECT id FROM users WHERE id = ?').get(customer_id);
+      if (!verifyRow) {
+        customer_id = null;
       }
     }
 
@@ -448,6 +490,12 @@ router.post('/:id/confirm-handover', authenticateToken, (req, res) => {
     const senderName = user.full_name || delivery.sender_name;
     const senderPhone = user.phone || delivery.sender_phone;
 
+    let verifiedSenderId = (user && user.id) ? user.id : null;
+    if (verifiedSenderId) {
+      const senderRow = db.prepare('SELECT id FROM users WHERE id = ?').get(verifiedSenderId);
+      if (!senderRow) verifiedSenderId = delivery.customer_id || null;
+    }
+
     const confirmTxn = db.transaction(() => {
       // 1. Update delivery table
       db.prepare(`
@@ -462,7 +510,7 @@ router.post('/:id/confirm-handover', authenticateToken, (req, res) => {
         WHERE id = ?
       `).run(
         handoverId,
-        user.id || null,
+        verifiedSenderId,
         `Handover confirmed physically by sender ${senderName}`,
         deliveryId
       );
@@ -484,7 +532,7 @@ router.post('/:id/confirm-handover', authenticateToken, (req, res) => {
         )
       `).run(
         handoverId, deliveryId, delivery.tracking_number,
-        user.id || null, senderName, senderPhone,
+        verifiedSenderId, senderName, senderPhone,
         delivery.courier_id, courierName, courierPhone,
         delivery.courier_arrived_at, `Sender confirmed physical package handover at ${delivery.pickup_location}`
       );

@@ -18,6 +18,31 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    
+    // Check if the user exists in database and enrich req.user
+    if (user && user.id) {
+      const dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE id = ?').get(user.id);
+      if (dbUser) {
+        req.user = { ...user, ...dbUser };
+        return next();
+      }
+    }
+
+    // If ID from token not found in SQLite (e.g. reseeded DB), try matching by phone or email
+    if (user && (user.phone || user.email)) {
+      let dbUser = null;
+      if (user.phone) {
+        dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE phone = ?').get(user.phone);
+      }
+      if (!dbUser && user.email) {
+        dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE LOWER(email) = LOWER(?)').get(user.email);
+      }
+      if (dbUser) {
+        req.user = { ...user, ...dbUser };
+        return next();
+      }
+    }
+
     req.user = user;
     next();
   });
