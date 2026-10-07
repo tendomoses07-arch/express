@@ -77,12 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobileCustomerTabs = document.getElementById('mobileCustomerTabs');
     const mobileCourierTabs = document.getElementById('mobileCourierTabs');
 
-    // Top portal role chips: Always keep Customer App and Assigned Tasks accessible
-    if (chipCustomerApp) chipCustomerApp.style.display = 'inline-flex';
-    if (chipCourierTasks) chipCourierTasks.style.display = 'inline-flex';
-
+    // Top portal role chips: Strictly enforce role isolation
     if (user.role === 'courier') {
-      // COURIER ONLY INTERFACE
+      // COURIER ONLY INTERFACE - Strictly isolated from Customer App
+      if (chipCustomerApp) chipCustomerApp.style.display = 'none';
+      if (chipCourierTasks) chipCourierTasks.style.display = 'inline-flex';
       if (customerNavItems) customerNavItems.style.display = 'none';
       if (courierNavItems) courierNavItems.style.display = 'inline-flex';
       if (mobileCustomerTabs) mobileCustomerTabs.style.display = 'none';
@@ -93,18 +92,34 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (brandTagline) brandTagline.textContent = 'Courier Partner Portal';
       if (roleBarTitle) roleBarTitle.innerHTML = '<span>Rider Portal:</span>';
-    } else {
-      // CUSTOMER ONLY INTERFACE (Default)
+    } else if (user.role === 'admin') {
+      // ADMIN INTERFACE
+      if (chipCustomerApp) chipCustomerApp.style.display = 'inline-flex';
+      if (chipCourierTasks) chipCourierTasks.style.display = 'inline-flex';
       if (customerNavItems) customerNavItems.style.display = 'inline-flex';
       if (courierNavItems) courierNavItems.style.display = 'none';
       if (mobileCustomerTabs) mobileCustomerTabs.style.display = 'flex';
       if (mobileCourierTabs) mobileCourierTabs.style.display = 'none';
       if (headerUserRole) {
-        headerUserRole.textContent = user.role === 'admin' ? 'Admin' : 'Customer';
-        headerUserRole.className = user.role === 'admin' ? 'user-role-badge admin-role' : 'user-role-badge';
+        headerUserRole.textContent = 'Admin';
+        headerUserRole.className = 'user-role-badge admin-role';
+      }
+      if (brandTagline) brandTagline.textContent = 'Admin Operations';
+      if (roleBarTitle) roleBarTitle.innerHTML = '<span>Admin Portal:</span>';
+    } else {
+      // CUSTOMER ONLY INTERFACE (Default) - Strictly isolated from Courier Tasks
+      if (chipCustomerApp) chipCustomerApp.style.display = 'inline-flex';
+      if (chipCourierTasks) chipCourierTasks.style.display = 'none';
+      if (customerNavItems) customerNavItems.style.display = 'inline-flex';
+      if (courierNavItems) courierNavItems.style.display = 'none';
+      if (mobileCustomerTabs) mobileCustomerTabs.style.display = 'flex';
+      if (mobileCourierTabs) mobileCourierTabs.style.display = 'none';
+      if (headerUserRole) {
+        headerUserRole.textContent = 'Customer';
+        headerUserRole.className = 'user-role-badge';
       }
       if (brandTagline) brandTagline.textContent = 'Send it. We deliver it.';
-      if (roleBarTitle) roleBarTitle.innerHTML = '<span>Delivery Portal:</span>';
+      if (roleBarTitle) roleBarTitle.innerHTML = '<span>Customer Portal:</span>';
 
       // Pre-fill sender details in delivery request form if customer is logged in and fields are empty
       const senderNameInput = document.getElementById('senderNameInput');
@@ -135,6 +150,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const user = window.kolaApi.auth.getUser();
+
+    // STRICT ROLE ACCESS CONTROL:
+    // Couriers are strictly prohibited from viewing or accessing customer app pages
+    if (user?.role === 'courier') {
+      if (['home', 'request', 'account'].includes(viewName)) {
+        console.warn(`[Access Restricted] Courier cannot access customer view "${viewName}". Enforcing courier dashboard.`);
+        showToast('Courier accounts cannot access the Customer App. Showing your Assigned Tasks.', 'warning');
+        viewName = 'courier';
+      }
+    } else if (user?.role === 'customer') {
+      // Customers are prohibited from accessing courier tasks
+      if (viewName === 'courier') {
+        console.warn(`[Access Restricted] Customer cannot access courier dashboard.`);
+        showToast('Assigned Tasks portal is restricted to registered couriers.', 'warning');
+        viewName = 'home';
+      }
+    }
 
     if (viewName === 'request') {
       Object.keys(views).forEach(v => {
@@ -225,13 +257,18 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (viewName === 'courier') {
       const alertBanner = document.getElementById('customerHandoverAlert');
       if (alertBanner) alertBanner.style.display = 'none';
+      const activeSection = document.getElementById('activeDeliverySection');
+      if (activeSection) activeSection.style.display = 'none';
       initCourierView();
+      loadCourierTasks();
     } else if (viewName === 'account') {
       initAccountView();
     }
 
-    // Check for active sender handover confirmation requests
-    checkActiveSenderHandovers();
+    // Check for active sender handover confirmation requests (Customer only)
+    if (user?.role !== 'courier') {
+      checkActiveSenderHandovers();
+    }
   }
 
   // Bind nav links
@@ -1384,6 +1421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`Welcome, ${res.user.full_name}`, 'success');
         checkAuthAndEnforceGate();
         initRealtimeManager();
+        switchView('courier');
         initCourierView();
         loadCourierTasks();
       } catch (err) {
@@ -1712,10 +1750,17 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const res = await window.kolaApi.auth.login(identifier, pass);
         showToast(`Welcome back, ${res.user.full_name}`, 'success');
-        initAccountView();
         checkAuthAndEnforceGate();
         initRealtimeManager();
-        loadActiveDelivery();
+        if (res.user.role === 'courier') {
+          switchView('courier');
+          initCourierView();
+          loadCourierTasks();
+        } else {
+          initAccountView();
+          switchView('home');
+          loadActiveDelivery();
+        }
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1935,6 +1980,8 @@ document.addEventListener('DOMContentLoaded', () => {
         initRealtimeManager();
         if (res.user.role === 'courier') {
           switchView('courier');
+          initCourierView();
+          loadCourierTasks();
         } else {
           switchView('home');
           loadActiveDelivery();
@@ -2290,9 +2337,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderActiveDeliveryCard(data) {
-    const { delivery, courier, latest_update, eta_text, status_meta } = data;
+    const user = window.kolaApi.auth.getUser();
     const activeSection = document.getElementById('activeDeliverySection');
     if (!activeSection) return;
+
+    if (!user || user.role === 'courier') {
+      activeSection.style.display = 'none';
+      return;
+    }
+
+    const { delivery, courier, latest_update, eta_text, status_meta } = data;
+    if (!delivery) {
+      activeSection.style.display = 'none';
+      return;
+    }
 
     activeSection.style.display = 'block';
 
@@ -2510,8 +2568,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show prominent floating toast notification for important delivery events
       showDeliveryStatusNotification(payload);
 
-      // Immediately update the customer's Active Delivery dashboard card
-      renderActiveDeliveryCard(payload);
+      // Immediately update the customer's Active Delivery dashboard card (customers/admins only)
+      const currentUser = window.kolaApi.auth.getUser();
+      if (currentUser?.role !== 'courier') {
+        renderActiveDeliveryCard(payload);
+        checkActiveSenderHandovers();
+      }
 
       // If user is currently on Tracking page, refresh tracking details in-place
       const trackingResultWrap = document.getElementById('trackingResultWrap');
@@ -2529,13 +2591,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // If courier or admin, or on Courier Tasks page, refresh courier tasks immediately
-      const currentUser = window.kolaApi.auth.getUser();
       if (currentUser?.role === 'courier' || currentUser?.role === 'admin' || (views.courier && views.courier.style.display !== 'none')) {
         loadCourierTasks();
       }
-
-      // Check handover confirmation banner
-      checkActiveSenderHandovers();
     });
   }
 
@@ -2546,6 +2604,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initRealtimeManager();
     if (user?.role === 'courier') {
       switchView('courier');
+      initCourierView();
+      loadCourierTasks();
     } else {
       switchView('home');
       loadActiveDelivery();
@@ -2580,8 +2640,8 @@ document.addEventListener('DOMContentLoaded', () => {
       loadCourierTasks();
     } else {
       loadActiveDelivery();
+      checkActiveSenderHandovers();
     }
-    checkActiveSenderHandovers();
   }, 25000);
 
   // ===================================================================

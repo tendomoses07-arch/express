@@ -70,6 +70,9 @@ router.get('/stream', (req, res) => {
 // 0d. Active Delivery for Authenticated User Dashboard
 router.get('/active', authenticateToken, (req, res) => {
   try {
+    if (req.user && req.user.role === 'courier') {
+      return res.status(403).json({ error: 'Access restricted: couriers do not have customer active delivery cards', active: false, delivery: null });
+    }
     const active = realtimeService.getActiveDeliveryForUser(req.user);
     if (!active) {
       return res.json({ active: false, delivery: null });
@@ -138,6 +141,9 @@ router.post('/quote', async (req, res) => {
 // 2. Create Delivery Request (Requires registered / authenticated user)
 router.post('/', authenticateToken, async (req, res) => {
   try {
+    if (req.user && req.user.role === 'courier') {
+      return res.status(403).json({ error: 'Courier accounts are restricted from submitting customer delivery requests.' });
+    }
     const {
       sender_name,
       sender_phone,
@@ -678,6 +684,9 @@ router.get('/:trackingOrId', optionalAuth, (req, res) => {
 // 4. List deliveries for logged in user or query phone
 router.get('/', optionalAuth, (req, res) => {
   try {
+    if (req.user && req.user.role === 'courier') {
+      return res.status(403).json({ error: 'Courier accounts must access assigned tasks via /api/couriers/my-deliveries' });
+    }
     const { phone } = req.query;
 
     let deliveries = [];

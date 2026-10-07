@@ -307,16 +307,8 @@ class DeliveryRealtimeService extends EventEmitter {
     let delivery = null;
 
     if (user.role === 'courier') {
-      const courierId = user.courier_id || (
-        db.prepare('SELECT id FROM couriers WHERE user_id = ? OR phone = ?').get(user.id, user.phone)?.id
-      );
-      if (!courierId) return null;
-
-      delivery = db.prepare(`
-        SELECT id FROM deliveries
-        WHERE courier_id = ? AND status NOT IN ('Delivered', 'Cancelled')
-        ORDER BY id DESC LIMIT 1
-      `).get(courierId);
+      // Couriers do not have customer dashboard active deliveries
+      return null;
     } else {
       // Customer: Active delivery where status is NOT Cancelled, and either NOT Delivered
       // or Delivered within the last 15 minutes
