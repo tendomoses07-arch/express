@@ -4,6 +4,7 @@ const { db } = require('../db');
 const { calculateDeliveryQuote, calculateLiveDeliveryQuote } = require('../pricing');
 const { searchAddressSuggestions, geocodeAddress } = require('../services/mapService');
 const { sanitizeAndValidateUgandaPhone } = require('../paymentGateway');
+const realtimeService = require('../services/realtimeService');
 const jwt = require('jsonwebtoken');
 const { authenticateToken, JWT_SECRET } = require('./auth');
 
@@ -59,6 +60,24 @@ router.get('/map-config', (req, res) => {
     token_required: false,
     status: 'active'
   });
+});
+
+// 0c. Live Delivery Realtime SSE Stream (Authenticated & Security-Isolated)
+router.get('/stream', (req, res) => {
+  realtimeService.handleSseConnection(req, res);
+});
+
+// 0d. Active Delivery for Authenticated User Dashboard
+router.get('/active', authenticateToken, (req, res) => {
+  try {
+    const active = realtimeService.getActiveDeliveryForUser(req.user);
+    if (!active) {
+      return res.json({ active: false, delivery: null });
+    }
+    res.json({ active: true, ...active });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 1. Calculate Delivery Quote (Public endpoint for live geocoding, road distance, ETA & rate preview)
@@ -221,6 +240,14 @@ router.post('/', authenticateToken, async (req, res) => {
     const dLng = quote.destination?.lng || null;
     const etaMins = quote.duration_minutes || null;
 
+    const baseFee = quote.base_fee || 4000;
+    const distanceFee = quote.distance_fee || 0;
+    const surcharges = quote.urgent_fee || (is_urgent ? 3000 : 0);
+    const discounts = 0;
+    const finalFee = quote.total_fee || (baseFee + distanceFee + surcharges);
+    const routingProvider = quote.map_provider || 'osrm';
+    const routeRef = quote.route_type || 'OSRM Live Driving Route';
+
     let deliveryId;
     const createTxn = db.transaction(() => {
       const stmt = db.prepare(`
@@ -231,7 +258,13 @@ router.post('/', authenticateToken, async (req, res) => {
           delivery_directions, delivery_notes, item_description,
           item_category, special_instructions, is_urgent,
           distance_km, delivery_fee, status, delivery_pin,
-          pickup_lat, pickup_lng, delivery_lat, delivery_lng, eta_minutes
+          pickup_lat, pickup_lng, delivery_lat, delivery_lng, eta_minutes,
+          pickup_address, pickup_latitude, pickup_longitude,
+          dropoff_address, dropoff_latitude, dropoff_longitude,
+          road_distance, estimated_travel_time,
+          base_delivery_fee, distance_fee, surcharges, discounts,
+          final_delivery_fee, pricing_version, routing_provider,
+          route_reference, pricing_calculation_timestamp
         ) VALUES (
           ?, ?, ?, ?,
           ?, ?, ?,
@@ -239,7 +272,13 @@ router.post('/', authenticateToken, async (req, res) => {
           ?, ?, ?,
           ?, ?, ?,
           ?, ?, 'Awaiting Payment', ?,
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?, ?, ?,
+          ?, 'v1.0', ?,
+          ?, CURRENT_TIMESTAMP
         )
       `);
 
@@ -261,13 +300,28 @@ router.post('/', authenticateToken, async (req, res) => {
         special_instructions ? special_instructions.trim() : null,
         is_urgent ? 1 : 0,
         quote.distance_km,
-        quote.total_fee,
+        finalFee,
         delivery_pin,
         pLat,
         pLng,
         dLat,
         dLng,
-        etaMins
+        etaMins,
+        pickup_location.trim(),
+        pLat,
+        pLng,
+        delivery_location.trim(),
+        dLat,
+        dLng,
+        quote.distance_km,
+        etaMins,
+        baseFee,
+        distanceFee,
+        surcharges,
+        discounts,
+        finalFee,
+        routingProvider,
+        routeRef
       );
 
       deliveryId = result.lastInsertRowid;
@@ -290,6 +344,9 @@ router.post('/', authenticateToken, async (req, res) => {
     });
 
     createTxn();
+
+    // Broadcast new delivery request event in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: 'Awaiting Payment' });
 
     const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
 
@@ -448,6 +505,9 @@ router.post('/:id/confirm-handover', authenticateToken, (req, res) => {
 
     confirmTxn();
 
+    // Broadcast package handover confirmed event in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: 'Package Picked Up' });
+
     const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     const handoverRecord = db.prepare('SELECT * FROM handover_confirmations WHERE handover_id = ?').get(handoverId);
 
@@ -514,6 +574,9 @@ router.post('/:id/dispute-handover', authenticateToken, (req, res) => {
     });
 
     disputeTxn();
+
+    // Broadcast handover dispute notice in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: 'Awaiting Sender Confirmation' });
 
     const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
 

@@ -88,3 +88,41 @@ admin_logs (id, admin_name, action, details, timestamp)
 - Input validation on Uganda phone numbers and mandatory fields.
 - Role-based authorization for administrative and courier dispatch actions.
 - Full immutable status audit history for every delivery request.
+
+---
+
+## 🗄️ Supabase Database Migration Workflow
+
+Kola Express features an enterprise-grade, version-controlled **Supabase Database Migration Workflow**. Database schemas are managed using declarative, idempotent SQL migration files under `supabase/migrations/`.
+
+### Migration Structure
+```
+supabase/
+├── config.toml                              # Supabase project configuration
+├── seed.sql                                 # Idempotent baseline seed data
+├── data_export_from_sqlite.sql              # Clean SQL export of live SQLite records
+└── migrations/
+    ├── 20261006000001_initial_schema.sql            # Core tables, constraints & indexes
+    ├── 20261006000002_delivery_pricing_engine.sql   # 17 delivery-pricing fields & sync triggers
+    └── 20261006000003_rls_and_security_policies.sql # Row Level Security policies
+```
+
+### 17 Authoritative Delivery-Pricing Engine Fields
+Every delivery record contains authoritative routing and pricing calculations:
+- `pickup_address`, `pickup_latitude`, `pickup_longitude`
+- `dropoff_address`, `dropoff_latitude`, `dropoff_longitude`
+- `road_distance` (km), `estimated_travel_time` (mins)
+- `base_delivery_fee`, `distance_fee`, `surcharges`, `discounts`, `final_delivery_fee`
+- `pricing_version`, `routing_provider`, `route_reference`, `pricing_calculation_timestamp`
+
+### Commands Cheat-Sheet
+
+| Action | Command | Description |
+|---|---|---|
+| **Validate Migrations** | `npm run db:validate` (or `npm test`) | Validates syntax, non-destructive safety, pricing fields, and leaks |
+| **Export SQLite Data** | `npm run db:export` | Exports all live SQLite records into `supabase/data_export_from_sqlite.sql` |
+| **Sync to Supabase** | `npm run db:sync` | Directly syncs SQLite records to Supabase PostgreSQL via `DATABASE_URL` |
+| **Link Remote Supabase** | `npx supabase link --project-ref <your-ref>` | Links local CLI to remote Supabase project |
+| **Create New Migration** | `npx supabase migration new <name>` | Generates a new timestamped migration file |
+| **Deploy Migrations (Push)** | `npx supabase db push` | Applies pending migrations to remote Supabase database |
+| **Check Migration Status** | `npx supabase migration list` | Compares local migration files with remote database state |

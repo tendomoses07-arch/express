@@ -30,12 +30,17 @@
 
       <form id="adminLoginForm">
         <div class="form-group">
-          <label class="form-label" for="loginIdentifier">Admin Email or Phone</label>
-          <input type="text" id="loginIdentifier" class="form-input" placeholder="admin@kolaexpress.ug" required autocomplete="username">
+          <label class="form-label" for="loginIdentifier">Admin Email, Phone, or Role</label>
+          <input type="text" id="loginIdentifier" class="form-input" placeholder="e.g. admin, ops, finance, or admin@kolaexpress.ug" required autocomplete="username">
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="loginPassword">Security Password</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+            <label class="form-label" for="loginPassword" style="margin-bottom:0;">Security Password</label>
+            <button type="button" id="togglePasswordVisibilityBtn" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.8rem; display:flex; align-items:center; gap:0.25rem;">
+              <span id="togglePasswordIcon">👁️</span> <span id="togglePasswordText">Show</span>
+            </button>
+          </div>
           <input type="password" id="loginPassword" class="form-input" placeholder="••••••••••••" required autocomplete="current-password">
         </div>
 
@@ -47,19 +52,22 @@
 
       <!-- Quick Role Presets for Demo & Testing -->
       <div class="role-preset-box">
-        <div class="role-preset-title">Authorized Staff Role Presets</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+          <div class="role-preset-title" style="margin-bottom:0;">Authorized Staff Role Presets</div>
+          <span style="font-size:0.7rem; color:var(--text-dim);" id="presetSyncNote">Syncs updated passwords</span>
+        </div>
         <div class="role-preset-buttons">
           <button type="button" class="role-chip-btn" id="fillSuperAdmin">
             <span><strong>Super Admin</strong> (Full Access)</span>
-            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#60a5fa;">admin@kolaexpress.ug</span>
+            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#60a5fa;" id="superAdminPresetSubtitle">admin@kolaexpress.ug</span>
           </button>
           <button type="button" class="role-chip-btn" id="fillOpsAdmin">
             <span><strong>Operations Admin</strong> (Dispatch &amp; Fleet)</span>
-            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#34d399;">ops@kolaexpress.ug</span>
+            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#34d399;" id="opsAdminPresetSubtitle">ops@kolaexpress.ug</span>
           </button>
           <button type="button" class="role-chip-btn" id="fillFinanceAdmin">
             <span><strong>Finance Admin</strong> (Ledger &amp; Reports)</span>
-            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#fbbf24;">finance@kolaexpress.ug</span>
+            <span style="font-family:var(--font-mono); font-size:0.75rem; color:#fbbf24;" id="financeAdminPresetSubtitle">finance@kolaexpress.ug</span>
           </button>
         </div>
       </div>
@@ -471,6 +479,25 @@
              TAB 6: REPORTS & ANALYTICS
              =============================================================== -->
         <section id="pane-reports" class="tab-pane" style="display:none;">
+          <!-- Reports Header Toolbar -->
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid var(--border-color);">
+            <div>
+              <h2 style="font-size:1.25rem; font-weight:800; margin:0; display:flex; align-items:center; gap:0.5rem;">
+                <span>📈 Financial & Operational Intelligence</span>
+                <span class="admin-badge success" style="font-size:0.7rem; font-weight:700;">Live MoMo Ledger</span>
+              </h2>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin:0.25rem 0 0 0;">Aggregated real-time metrics, cashflow inflows, rider trip performance, and delivery trends.</p>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+              <button class="btn btn-secondary btn-sm" id="btnRefreshReports" title="Reload reports and analytics">
+                <span>🔄 Refresh</span>
+              </button>
+              <button class="btn btn-primary btn-sm" id="btnExportReportsCsv" title="Download financial summary CSV">
+                <span>📥 Export CSV</span>
+              </button>
+            </div>
+          </div>
+
           <div class="stats-grid">
             <div class="stat-tile">
               <div class="stat-tile-top">
@@ -512,7 +539,7 @@
               <div class="admin-card-header">
                 <h3 class="admin-card-title">🏆 Top Performing Couriers</h3>
               </div>
-              <div class="table-responsive">
+              <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
                 <table class="admin-table">
                   <thead>
                     <tr>
@@ -534,8 +561,43 @@
               <div class="admin-card-header">
                 <h3 class="admin-card-title">📊 Operational Status Distribution</h3>
               </div>
-              <div id="reportStatusDistribution" style="display:flex; flex-direction:column; gap:0.75rem; padding:0.5rem 0;">
+              <div id="reportStatusDistribution" style="display:flex; flex-direction:column; gap:0.75rem; padding:0.5rem 0; max-height:300px; overflow-y:auto;">
                 <div style="color:var(--text-muted); font-size:0.85rem; text-align:center;">Calculating distribution...</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:1.5rem; margin-top:1.5rem;">
+            <!-- Payment Channels Breakdown -->
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3 class="admin-card-title">💳 Payment Channels & Volume</h3>
+              </div>
+              <div id="reportPaymentChannels" style="padding:0.5rem 0;">
+                <div style="color:var(--text-muted); font-size:0.85rem; text-align:center;">Loading payment channels...</div>
+              </div>
+            </div>
+
+            <!-- Daily Trends Activity -->
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3 class="admin-card-title">📅 14-Day Performance Trends</h3>
+              </div>
+              <div class="table-responsive" style="max-height:280px; overflow-y:auto;">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th style="text-align:center;">Orders</th>
+                      <th style="text-align:center;">Delivered</th>
+                      <th style="text-align:center;">Cancelled</th>
+                      <th style="text-align:right;">Verified Inflow</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportDailyTrendsTable">
+                    <tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading activity trends...</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

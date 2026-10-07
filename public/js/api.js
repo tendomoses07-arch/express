@@ -133,6 +133,9 @@ const api = {
     },
     async getHandover(deliveryId) {
       return await request(`/deliveries/${deliveryId}/handover`);
+    },
+    async getActive() {
+      return await request('/deliveries/active');
     }
   },
 
@@ -244,6 +247,105 @@ const api = {
     },
     async getLogs() {
       return await request('/admin/logs');
+    }
+  },
+
+  // Authoritative Realtime Client (Supabase Realtime & SSE Dual Engine)
+  realtime: {
+    eventSource: null,
+    listeners: {},
+    status: 'disconnected',
+    reconnectTimer: null,
+    reconnectAttempts: 0,
+
+    connect() {
+      const token = getStoredToken();
+      if (!token) return;
+      if (this.eventSource) {
+        this.disconnect();
+      }
+
+      this.status = 'connecting';
+      this.trigger('status', { status: 'connecting' });
+
+      try {
+        const url = `${API_BASE}/deliveries/stream?token=${encodeURIComponent(token)}`;
+        const es = new EventSource(url);
+        this.eventSource = es;
+
+        es.onopen = () => {
+          this.status = 'connected';
+          this.reconnectAttempts = 0;
+          this.trigger('status', { status: 'connected' });
+        };
+
+        es.addEventListener('connected', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            this.trigger('connected', data);
+          } catch (err) {}
+        });
+
+        es.addEventListener('delivery_status_update', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            this.trigger('delivery_status_update', data);
+          } catch (err) {
+            console.error('Error parsing realtime delivery update:', err);
+          }
+        });
+
+        es.onerror = () => {
+          this.status = 'reconnecting';
+          this.trigger('status', { status: 'reconnecting' });
+          try { es.close(); } catch (e) {}
+          this.eventSource = null;
+
+          const delay = Math.min(10000, 2000 * Math.pow(1.4, this.reconnectAttempts));
+          this.reconnectAttempts++;
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = setTimeout(() => {
+            if (getStoredToken()) {
+              this.connect();
+            }
+          }, delay);
+        };
+      } catch (err) {
+        console.warn('Realtime connection error:', err);
+      }
+    },
+
+    disconnect() {
+      clearTimeout(this.reconnectTimer);
+      if (this.eventSource) {
+        try { this.eventSource.close(); } catch (e) {}
+        this.eventSource = null;
+      }
+      this.status = 'disconnected';
+      this.trigger('status', { status: 'disconnected' });
+    },
+
+    on(event, callback) {
+      if (!this.listeners[event]) this.listeners[event] = [];
+      this.listeners[event].push(callback);
+      return () => this.off(event, callback);
+    },
+
+    off(event, callback) {
+      if (!this.listeners[event]) return;
+      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    },
+
+    trigger(event, data) {
+      if (this.listeners[event]) {
+        this.listeners[event].forEach(cb => {
+          try { cb(data); } catch (e) { console.error(e); }
+        });
+      }
+    },
+
+    emit(event, data) {
+      this.trigger(event, data);
     }
   }
 };

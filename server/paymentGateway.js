@@ -1,4 +1,5 @@
 const { db } = require('./db');
+const realtimeService = require('./services/realtimeService');
 const crypto = require('crypto');
 
 // Supported Uganda Mobile Money operators
@@ -180,6 +181,9 @@ function verifyPayment({ reference_id, simulateFailure = false }) {
   });
 
   updateTxn();
+
+  // Broadcast payment confirmed in real-time
+  realtimeService.broadcastDeliveryUpdate(payment.delivery_id, { status: 'Payment Confirmed' });
 
   return {
     status: 'Successful',

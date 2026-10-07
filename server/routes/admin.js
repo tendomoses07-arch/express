@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { db } = require('../db');
 const { getActivePricingRules, updatePricingRules } = require('../pricing');
 const { sanitizeAndValidateUgandaPhone } = require('../paymentGateway');
+const realtimeService = require('../services/realtimeService');
 const {
   authenticateToken,
   requireAdmin,
@@ -283,6 +284,9 @@ function performCourierAssignment({ deliveryIdentifier, courierIdentifier, admin
 
   assignTxn();
 
+  // Broadcast courier assignment in real-time
+  realtimeService.broadcastDeliveryUpdate(delivery.id, { status: 'Courier Assigned' });
+
   const updated = db.prepare(`
     SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
     FROM deliveries d
@@ -542,6 +546,9 @@ router.post('/deliveries/:id/cancel', requireOpsOrSuperAdmin, (req, res) => {
 
     cancelTxn();
 
+    // Broadcast delivery cancellation in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: 'Cancelled' });
+
     res.json({ message: 'Delivery cancelled successfully', status: 'Cancelled' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -578,6 +585,9 @@ router.post('/deliveries/:id/status', requireOpsOrSuperAdmin, (req, res) => {
     });
 
     updateTxn();
+
+    // Broadcast administrative status update in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status });
 
     res.json({ message: 'Status updated successfully', status });
   } catch (err) {
@@ -734,6 +744,9 @@ router.post('/deliveries/:id/correct-handover', requireOpsOrSuperAdmin, (req, re
     });
 
     correctionTxn();
+
+    // Broadcast handover correction in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId);
 
     const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     res.json({
@@ -1017,9 +1030,41 @@ router.get('/payments', requireFinanceOrSuperAdmin, (req, res) => {
 });
 
 // 12. Reports & Analytics (Finance Admin or Super Admin)
+// 12. Reports & Analytics (Finance Admin or Super Admin)
 router.get('/reports', requireFinanceOrSuperAdmin, (req, res) => {
   try {
-    // Deliveries by day (last 14 days)
+    // 1. Total revenue from all verified payments
+    const totalRevRow = db.prepare(`
+      SELECT COALESCE(SUM(amount), 0) as total_revenue
+      FROM payments
+      WHERE payment_status = 'Successful'
+    `).get();
+    const total_revenue = totalRevRow ? totalRevRow.total_revenue : 0;
+
+    // 2. Fulfilled orders count
+    const completedRow = db.prepare(`
+      SELECT COUNT(*) as completed_count
+      FROM deliveries
+      WHERE status = 'Delivered'
+    `).get();
+    const completed_count = completedRow ? completedRow.completed_count : 0;
+
+    // 3. Cancelled orders count
+    const cancelledRow = db.prepare(`
+      SELECT COUNT(*) as cancelled_count
+      FROM deliveries
+      WHERE status = 'Cancelled'
+    `).get();
+    const cancelled_count = cancelledRow ? cancelledRow.cancelled_count : 0;
+
+    // 4. Fleet size (registered couriers)
+    const fleetRow = db.prepare(`
+      SELECT COUNT(*) as fleet_size
+      FROM couriers
+    `).get();
+    const fleet_size = fleetRow ? fleetRow.fleet_size : 0;
+
+    // 5. Deliveries by day (last 14 days)
     const dailyVolume = db.prepare(`
       SELECT date(created_at) as date, COUNT(*) as count, 
              SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) as delivered,
@@ -1027,49 +1072,97 @@ router.get('/reports', requireFinanceOrSuperAdmin, (req, res) => {
       FROM deliveries
       WHERE created_at >= date('now', '-14 days')
       GROUP BY date(created_at)
-      ORDER BY date(created_at) ASC
+      ORDER BY date(created_at) DESC
     `).all();
 
-    // Revenue by day (last 14 days)
+    // 6. Revenue by day (last 14 days)
     const dailyRevenue = db.prepare(`
       SELECT date(confirmed_at) as date, SUM(amount) as revenue, COUNT(*) as tx_count
       FROM payments
       WHERE payment_status = 'Successful' AND confirmed_at >= date('now', '-14 days')
       GROUP BY date(confirmed_at)
-      ORDER BY date(confirmed_at) ASC
+      ORDER BY date(confirmed_at) DESC
     `).all();
 
-    // Status distribution
+    // 7. Status distribution
     const statusDistribution = db.prepare(`
       SELECT status, COUNT(*) as count
       FROM deliveries
       GROUP BY status
+      ORDER BY count DESC
     `).all();
 
-    // Payment methods breakdown
+    // Key-value object for frontend
+    const status_breakdown = {};
+    statusDistribution.forEach(s => {
+      status_breakdown[s.status] = s.count;
+    });
+
+    // 8. Payment methods breakdown
     const paymentMethods = db.prepare(`
       SELECT payment_method, COUNT(*) as count, SUM(amount) as total_volume
       FROM payments
       WHERE payment_status = 'Successful'
       GROUP BY payment_method
+      ORDER BY total_volume DESC
     `).all();
 
-    // Top Couriers by completed trips
-    const courierRankings = db.prepare(`
-      SELECT full_name, vehicle_type, plate_number, total_trips, rating, status
+    // 9. Top Couriers with completed trips and contact info
+    const top_couriers = db.prepare(`
+      SELECT id, full_name as name, full_name, phone, vehicle_type, plate_number, total_trips as completed_count, total_trips, rating, status
       FROM couriers
       ORDER BY total_trips DESC, rating DESC
       LIMIT 10
     `).all();
 
+    // 10. Combined daily trends (orders + revenue combined by date)
+    const dailyTrendsMap = new Map();
+    dailyVolume.forEach(v => {
+      dailyTrendsMap.set(v.date, {
+        date: v.date,
+        orders: v.count,
+        delivered: v.delivered,
+        cancelled: v.cancelled,
+        revenue: 0,
+        tx_count: 0
+      });
+    });
+    dailyRevenue.forEach(r => {
+      if (dailyTrendsMap.has(r.date)) {
+        const item = dailyTrendsMap.get(r.date);
+        item.revenue = r.revenue;
+        item.tx_count = r.tx_count;
+      } else {
+        dailyTrendsMap.set(r.date, {
+          date: r.date,
+          orders: 0,
+          delivered: 0,
+          cancelled: 0,
+          revenue: r.revenue,
+          tx_count: r.tx_count
+        });
+      }
+    });
+    const dailyTrends = Array.from(dailyTrendsMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
     res.json({
-      dailyVolume,
-      dailyRevenue,
+      success: true,
+      total_revenue,
+      completed_count,
+      cancelled_count,
+      fleet_size,
+      top_couriers,
+      courierRankings: top_couriers,
+      status_breakdown,
       statusDistribution,
       paymentMethods,
-      courierRankings
+      payment_methods: paymentMethods,
+      dailyVolume,
+      dailyRevenue,
+      dailyTrends
     });
   } catch (err) {
+    console.error('[Admin Reports Error]:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1249,7 +1342,10 @@ router.post('/change-password', (req, res) => {
       return res.status(400).json({ error: 'Current password and new password are required' });
     }
 
-    if (String(new_password).length < 4) {
+    const cleanCurrPass = String(current_password).trim();
+    const cleanNewPass = String(new_password).trim();
+
+    if (cleanNewPass.length < 4) {
       return res.status(400).json({ error: 'New password must be at least 4 characters long' });
     }
 
@@ -1258,13 +1354,14 @@ router.post('/change-password', (req, res) => {
       return res.status(404).json({ error: 'Admin user not found' });
     }
 
-    const isValid = bcrypt.compareSync(current_password, user.password_hash);
+    const isValid = bcrypt.compareSync(current_password, user.password_hash) || 
+                    bcrypt.compareSync(cleanCurrPass, user.password_hash);
     if (!isValid) {
       return res.status(400).json({ error: 'Current password does not match. Please verify your current credentials.' });
     }
 
-    const newHash = bcrypt.hashSync(new_password, 10);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+    const newHash = bcrypt.hashSync(cleanNewPass, 10);
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ? AND role = 'admin'").run(newHash, user.id);
 
     logAdminAction(
       req.user,
@@ -1275,6 +1372,9 @@ router.post('/change-password', (req, res) => {
     );
 
     res.json({
+      role: user.admin_role,
+      user_id: user.id,
+      email: user.email,
       message: 'Your admin password has been updated successfully. Please use your new password for future logins.'
     });
   } catch (err) {
@@ -1291,7 +1391,8 @@ router.post('/users/by-role/password', requireSuperAdmin, (req, res) => {
       return res.status(400).json({ error: 'Admin role and new password are required' });
     }
 
-    if (String(new_password).length < 4) {
+    const cleanNewPass = String(new_password).trim();
+    if (cleanNewPass.length < 4) {
       return res.status(400).json({ error: 'New password must be at least 4 characters long' });
     }
 
@@ -1300,24 +1401,29 @@ router.post('/users/by-role/password', requireSuperAdmin, (req, res) => {
       return res.status(400).json({ error: `Invalid role. Allowed roles: ${allowedRoles.join(', ')}` });
     }
 
-    const targetUser = db.prepare("SELECT id, full_name, email, role, admin_role FROM users WHERE admin_role = ? AND role = 'admin' LIMIT 1").get(admin_role);
-    if (!targetUser) {
+    const matchingAdmins = db.prepare("SELECT id, full_name, email, role, admin_role FROM users WHERE admin_role = ? AND role = 'admin'").all(admin_role);
+    if (!matchingAdmins || matchingAdmins.length === 0) {
       return res.status(404).json({ error: `No admin account found with role "${admin_role}"` });
     }
 
-    const newHash = bcrypt.hashSync(new_password, 10);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, targetUser.id);
+    const newHash = bcrypt.hashSync(cleanNewPass, 10);
+    db.prepare("UPDATE users SET password_hash = ? WHERE admin_role = ? AND role = 'admin'").run(newHash, admin_role);
 
-    logAdminAction(
-      req.user,
-      'RESET_ROLE_PASSWORD',
-      'users',
-      targetUser.id,
-      `Super Admin reset password for role ${targetUser.admin_role} (${targetUser.email})`
-    );
+    matchingAdmins.forEach(targetUser => {
+      logAdminAction(
+        req.user,
+        'RESET_ROLE_PASSWORD',
+        'users',
+        targetUser.id,
+        `Super Admin reset password for role ${targetUser.admin_role} (${targetUser.email})`
+      );
+    });
 
+    const displayRole = admin_role.replace('_', ' ').toUpperCase();
     res.json({
-      message: `Password for ${targetUser.full_name} (${targetUser.admin_role}) has been successfully updated.`
+      role: admin_role,
+      user_ids: matchingAdmins.map(a => a.id),
+      message: `Password for ${displayRole} (${matchingAdmins.map(a => a.email).join(', ')}) has been successfully updated.`
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1330,7 +1436,8 @@ router.post('/users/:id/password', requireSuperAdmin, (req, res) => {
     const adminId = Number(req.params.id);
     const { new_password } = req.body;
 
-    if (!new_password || String(new_password).length < 4) {
+    const cleanNewPass = String(new_password || '').trim();
+    if (cleanNewPass.length < 4) {
       return res.status(400).json({ error: 'New password must be at least 4 characters long' });
     }
 
@@ -1339,8 +1446,8 @@ router.post('/users/:id/password', requireSuperAdmin, (req, res) => {
       return res.status(404).json({ error: 'Admin user not found' });
     }
 
-    const newHash = bcrypt.hashSync(new_password, 10);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, targetUser.id);
+    const newHash = bcrypt.hashSync(cleanNewPass, 10);
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ? AND role = 'admin'").run(newHash, targetUser.id);
 
     logAdminAction(
       req.user,
@@ -1351,6 +1458,9 @@ router.post('/users/:id/password', requireSuperAdmin, (req, res) => {
     );
 
     res.json({
+      role: targetUser.admin_role,
+      user_id: targetUser.id,
+      email: targetUser.email,
       message: `Password for ${targetUser.full_name} (${targetUser.admin_role}) has been successfully updated.`
     });
   } catch (err) {

@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -119,7 +120,7 @@
           </div>
 
           <div class="auth-courier-hint" style="margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid rgba(255, 255, 255, 0.08); text-align: center; font-size: 0.775rem; color: #94a3b8; line-height: 1.4;">
-            <span>🏍️ <strong>Kola Express Courier Rider?</strong> Enter your registered phone number &amp; password above to access assigned deliveries.</span>
+            <span><strong>Kola Express Courier Rider?</strong> Enter your registered phone number &amp; password above to access assigned deliveries.</span>
           </div>
         </form>
 
@@ -157,7 +158,7 @@
       </div>
       <div class="role-chips">
         <button class="role-chip active" id="chipCustomerApp" data-view="home">Customer App</button>
-        <button class="role-chip" id="chipCourierTasks" data-view="courier" style="display: none;">Assigned Tasks</button>
+        <button class="role-chip" id="chipCourierTasks" data-view="courier">Assigned Tasks</button>
         <button class="role-chip" id="chipLiveTracking" data-view="track">Live Tracking</button>
         <button class="role-chip" id="chipAdminPortal" onclick="window.location.href='/admin'" style="display: none;">Admin Console ↗</button>
         <button class="role-chip" id="themeToggleBtn" title="Toggle Clean Delivery / Dark Mode">Delivery Light</button>
@@ -256,6 +257,196 @@
         </div>
       </div>
     </aside>
+
+    <!-- ===================================================================
+         CUSTOMER ACTIVE DELIVERY SECTION (LIVE AUTOMATIC UPDATES)
+         =================================================================== -->
+    <section id="activeDeliverySection" class="active-delivery-section" style="display: none;" aria-live="polite">
+      <div class="container">
+        
+        <!-- Main Prominent Active Delivery Card -->
+        <div class="active-delivery-card" id="activeDeliveryCard">
+          
+          <!-- Top Status Bar -->
+          <div class="ad-top-bar">
+            <div class="ad-top-badge-group">
+              <span class="ad-pulse-indicator">
+                <span class="ad-pulse-ring"></span>
+                <span class="pulse-dot"></span>
+                <span class="pulse-text">ACTIVE DELIVERY</span>
+              </span>
+              <span class="ad-realtime-pill" id="adRealtimePill">
+                <span class="ad-realtime-dot"></span>
+                <span id="adRealtimeStatus">Realtime Connected</span>
+              </span>
+            </div>
+            <div class="ad-ref-group">
+              <span class="ad-ref-label">Order Ref:</span>
+              <span class="ad-ref-code" id="adTrackingNumber">Kola Express #KE1024</span>
+              <button type="button" class="ad-copy-btn" id="adCopyTrackingBtn" title="Copy tracking reference">Copy</button>
+            </div>
+          </div>
+
+          <!-- Main Status Banner & Headline -->
+          <div class="ad-status-banner">
+            <div class="ad-status-left">
+              <div class="ad-status-pill" id="adStatusPill">
+                <span class="ad-status-icon" id="adStatusIcon">🟢</span>
+                <span class="ad-status-name" id="adStatusName">IN TRANSIT</span>
+              </div>
+              <h2 class="ad-status-headline" id="adStatusHeadline">Your package is on the way.</h2>
+              <p class="ad-status-desc" id="adStatusDesc">Your package has been picked up and is now on the way to the delivery destination.</p>
+            </div>
+            
+            <div class="ad-eta-badge" id="adEtaBadge">
+              <span class="ad-eta-icon">⏱️</span>
+              <div class="ad-eta-info">
+                <span class="ad-eta-label">Estimated Arrival</span>
+                <span class="ad-eta-value" id="adEtaValue">15 mins</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Visual Timeline Progress (6 Stages) -->
+          <div class="ad-progress-track">
+            <div class="ad-progress-bar-fill" id="adProgressBarFill" style="width: 60%;"></div>
+            <div class="ad-stage-nodes" id="adStageNodes">
+              <div class="ad-stage-node completed" data-stage="1">
+                <div class="node-circle">✓</div>
+                <span class="node-text">Placed</span>
+              </div>
+              <div class="ad-stage-node completed" data-stage="2">
+                <div class="node-circle">✓</div>
+                <span class="node-text">Assigned</span>
+              </div>
+              <div class="ad-stage-node completed" data-stage="3">
+                <div class="node-circle">✓</div>
+                <span class="node-text">Picked Up</span>
+              </div>
+              <div class="ad-stage-node active" data-stage="4">
+                <div class="node-circle">●</div>
+                <span class="node-text">In Transit</span>
+              </div>
+              <div class="ad-stage-node" data-stage="5">
+                <div class="node-circle">○</div>
+                <span class="node-text">Arrived</span>
+              </div>
+              <div class="ad-stage-node" data-stage="6">
+                <div class="node-circle">○</div>
+                <span class="node-text">Delivered</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Courier, Route & Latest Update 3-Column Grid -->
+          <div class="ad-content-grid">
+            
+            <!-- Column 1: Courier Info Box -->
+            <div class="ad-grid-card ad-courier-card" id="adCourierCard">
+              <div class="ad-card-header">
+                <span class="ad-card-icon" style="display: inline-flex; align-items: center;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--kola-blue);">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </span>
+                <h4>Courier Details</h4>
+              </div>
+              <div id="adCourierAssignedInfo">
+                <div class="ad-courier-profile">
+                  <div class="ad-courier-avatar" id="adCourierAvatar">MS</div>
+                  <div class="ad-courier-details">
+                    <strong class="ad-courier-name" id="adCourierName">Musa Ssewankambo</strong>
+                    <div class="ad-courier-vehicle" id="adCourierVehicle">Boda Boda • Plate: UFA 482B</div>
+                    <div class="ad-courier-rating" id="adCourierRating">★ 4.95 (142 trips)</div>
+                  </div>
+                </div>
+                <div class="ad-courier-actions">
+                  <a href="#" class="btn-call-courier" id="adCourierPhoneBtn">📞 Call Courier</a>
+                </div>
+              </div>
+              <div id="adCourierUnassignedNotice" style="display: none;" class="ad-unassigned-notice">
+                <span class="pulse-dot"></span>
+                <span>Assigning nearest verified Kola Express courier...</span>
+              </div>
+            </div>
+
+            <!-- Column 2: Route Locations -->
+            <div class="ad-grid-card ad-route-card">
+              <div class="ad-card-header">
+                <span class="ad-card-icon">📍</span>
+                <h4>Delivery Route</h4>
+              </div>
+              <div class="ad-route-item">
+                <div class="ad-route-dot pickup"></div>
+                <div class="ad-route-text">
+                  <span class="ad-route-type">Pickup Location</span>
+                  <strong class="ad-route-address" id="adPickupLocation">—</strong>
+                  <span class="ad-route-notes" id="adPickupDirections">—</span>
+                </div>
+              </div>
+              <div class="ad-route-item">
+                <div class="ad-route-dot dropoff"></div>
+                <div class="ad-route-text">
+                  <span class="ad-route-type">Delivery Destination</span>
+                  <strong class="ad-route-address" id="adDropoffLocation">—</strong>
+                  <span class="ad-route-notes" id="adDropoffDirections">—</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Column 3: Latest Update Event Box (Prompt Specific) -->
+            <div class="ad-grid-card ad-latest-update-card">
+              <div class="ad-card-header">
+                <span class="ad-card-icon">⚡</span>
+                <h4>Latest Update</h4>
+              </div>
+              <div class="ad-latest-update-body">
+                <div class="ad-latest-time" id="adLatestUpdateTime">—</div>
+                <p class="ad-latest-message" id="adLatestUpdateMsg">
+                  Delivery update will appear here automatically.
+                </p>
+                <div class="ad-latest-meta" id="adLatestUpdateMeta">
+                  System
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Contextual Action Bar -->
+          <div class="ad-action-bar">
+            
+            <!-- Handover buttons shown when status is Awaiting Sender Confirmation -->
+            <div id="adHandoverActionButtons" class="ad-handover-bar" style="display: none;">
+              <div class="ad-handover-notice">
+                <span>📦 Courier is at pickup! Confirm only after physical package handover:</span>
+              </div>
+              <div class="ad-handover-btns">
+                <button type="button" class="btn-handover-confirm" id="btnAdConfirmHandover">✓ CONFIRM PACKAGE HANDOVER</button>
+                <button type="button" class="btn-handover-dispute" id="btnAdDisputeHandover">I HAVE NOT HANDED OVER</button>
+              </div>
+            </div>
+
+            <!-- Recipient PIN Box (For sender to share with recipient) -->
+            <div id="adPinContainer" class="ad-pin-pill-box" style="display: none;">
+              <span class="ad-pin-icon">🔐</span>
+              <span class="ad-pin-label">Recipient PIN:</span>
+              <span class="ad-pin-code" id="adDeliveryPin">----</span>
+              <button type="button" class="ad-pin-btn" id="btnAdCopyPin" title="Copy PIN">Copy</button>
+              <a href="#" target="_blank" class="ad-pin-btn whatsapp" id="btnAdShareWhatsapp" title="Share via WhatsApp">Share PIN</a>
+            </div>
+
+            <!-- Full Tracking CTA -->
+            <button type="button" class="btn-primary ad-view-tracking-btn" id="btnAdViewTracking">
+              <span>View Full Tracking →</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
     
     <!-- Hero Section -->
     <section class="hero-section">
@@ -289,7 +480,7 @@
                 <span><strong>Airtel</strong> Money</span>
               </div>
               <div class="hero-badge-item">
-                <span>🛵</span>
+                <span>🛡️</span>
                 <span>Verified <strong>Boda Boda</strong> Couriers</span>
               </div>
               <div class="hero-badge-item">
@@ -656,8 +847,26 @@
           </div>
         </div>
 
+        <!-- Simple Clear Visual Delivery Timeline (Requested Flow) -->
+        <div class="delivery-visual-timeline-card" id="deliveryVisualTimelineCard">
+          <div class="timeline-header-row">
+            <div>
+              <span class="timeline-header-tag">LIVE PROGRESS</span>
+              <h3 style="margin: 0.2rem 0; font-size: 1.2rem;">Delivery Status Timeline</h3>
+            </div>
+            <div class="timeline-status-badge-wrap">
+              <span class="ad-pulse-ring-small"></span>
+              <span class="timeline-status-badge" id="timelineStatusBadge">In Transit</span>
+            </div>
+          </div>
+
+          <div class="timeline-milestones-flow" id="timelineMilestonesFlow">
+            <!-- Populated dynamically by renderTimelineMilestones -->
+          </div>
+        </div>
+
         <!-- 10-Status Stepper -->
-        <div class="status-stepper" id="statusStepper">
+        <div class="status-stepper" id="statusStepper" style="display: none;">
           <!-- Populated by JS -->
         </div>
 
@@ -734,7 +943,7 @@
 
         <!-- Courier Assigned Badge Box (If Courier Assigned) -->
         <div class="courier-badge-box" id="trackCourierBox" style="display: none;">
-          <div class="courier-avatar">Rider</div>
+          <div class="courier-avatar" id="trackCourierAvatar">MS</div>
           <div>
             <div class="courier-info-head">
               <span class="courier-name" id="trackCourierName">Musa Ssewankambo</span>
@@ -907,8 +1116,9 @@
               Rider: <strong id="courierProfileName" style="color: var(--kola-blue-dark);">Musa Ssewankambo</strong> • Status: 🟢 Online
             </p>
           </div>
-          <div>
-            <button class="btn-secondary logout-btn" style="padding: 0.45rem 0.9rem; font-size: 0.85rem;">Log Out</button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn-secondary" id="btnCourierRefreshTasks" onclick="window.kolaApp.refreshCourierTasks()" style="padding: 0.45rem 0.9rem; font-size: 0.85rem;">🔄 Refresh Tasks</button>
+            <button type="button" class="btn-secondary logout-btn" style="padding: 0.45rem 0.9rem; font-size: 0.85rem;">Log Out</button>
           </div>
         </div>
 
@@ -1154,6 +1364,9 @@
 
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Prominent Realtime Delivery Status Notification Banner Container -->
+  <div id="deliveryNotificationContainer" class="delivery-notification-container" aria-live="assertive"></div>
 
   <!-- Scripts -->
   <script src="/js/api.js"></script>

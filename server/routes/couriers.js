@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { authenticateToken, requireCourier } = require('./auth');
+const realtimeService = require('../services/realtimeService');
 
 // Public listing of active couriers (for dispatcher/assignment dropdown)
 router.get('/', (req, res) => {
@@ -100,6 +101,9 @@ router.post('/deliveries/:id/arrive', authenticateToken, requireCourier, (req, r
 
     arriveTxn();
 
+    // Broadcast courier arrival at pickup location in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: 'Awaiting Sender Confirmation' });
+
     const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     res.json({
       message: 'Arrival recorded. Awaiting sender package handover confirmation.',
@@ -154,6 +158,9 @@ router.post('/deliveries/:id/confirm-receipt', authenticateToken, requireCourier
     const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     const senderAlsoConfirmed = !!updated.handover_confirmed_at;
 
+    // Broadcast courier receipt confirmation in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: updated.status });
+
     res.json({
       message: senderAlsoConfirmed 
         ? 'Package handover verified by both sender and courier! Ready to start transit.'
@@ -187,6 +194,9 @@ router.post('/deliveries/:id/report-not-received', authenticateToken, requireCou
       `Courier ${courierName} reported: 'Waiting for sender ${delivery.sender_name} to hand over the physical package.'`,
       courierName
     );
+
+    // Broadcast report in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: 'Awaiting Sender Confirmation' });
 
     res.json({
       message: `Status recorded: Waiting to receive package from sender ${delivery.sender_name}.`
@@ -304,6 +314,9 @@ router.post('/deliveries/:id/status', authenticateToken, requireCourier, (req, r
 
     updateTxn();
 
+    // Broadcast status update in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status });
+
     const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     delete updated.delivery_pin;
     res.json({ message: 'Delivery status updated successfully', delivery: updated });
@@ -381,6 +394,9 @@ router.post('/deliveries/:id/verify-pin-and-deliver', authenticateToken, require
     });
 
     deliverTxn();
+
+    // Broadcast successful delivery in real-time
+    realtimeService.broadcastDeliveryUpdate(deliveryId, { status: 'Delivered' });
 
     const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     delete updated.delivery_pin;

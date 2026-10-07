@@ -77,12 +77,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobileCustomerTabs = document.getElementById('mobileCustomerTabs');
     const mobileCourierTabs = document.getElementById('mobileCourierTabs');
 
+    // Top portal role chips: Always keep Customer App and Assigned Tasks accessible
+    if (chipCustomerApp) chipCustomerApp.style.display = 'inline-flex';
+    if (chipCourierTasks) chipCourierTasks.style.display = 'inline-flex';
+
     if (user.role === 'courier') {
       // COURIER ONLY INTERFACE
       if (customerNavItems) customerNavItems.style.display = 'none';
       if (courierNavItems) courierNavItems.style.display = 'inline-flex';
-      if (chipCustomerApp) chipCustomerApp.style.display = 'none';
-      if (chipCourierTasks) chipCourierTasks.style.display = 'inline-flex';
       if (mobileCustomerTabs) mobileCustomerTabs.style.display = 'none';
       if (mobileCourierTabs) mobileCourierTabs.style.display = 'flex';
       if (headerUserRole) {
@@ -95,13 +97,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // CUSTOMER ONLY INTERFACE (Default)
       if (customerNavItems) customerNavItems.style.display = 'inline-flex';
       if (courierNavItems) courierNavItems.style.display = 'none';
-      if (chipCustomerApp) chipCustomerApp.style.display = 'inline-flex';
-      if (chipCourierTasks) chipCourierTasks.style.display = 'none';
       if (mobileCustomerTabs) mobileCustomerTabs.style.display = 'flex';
       if (mobileCourierTabs) mobileCourierTabs.style.display = 'none';
       if (headerUserRole) {
-        headerUserRole.textContent = 'Customer';
-        headerUserRole.className = 'user-role-badge';
+        headerUserRole.textContent = user.role === 'admin' ? 'Admin' : 'Customer';
+        headerUserRole.className = user.role === 'admin' ? 'user-role-badge admin-role' : 'user-role-badge';
       }
       if (brandTagline) brandTagline.textContent = 'Send it. We deliver it.';
       if (roleBarTitle) roleBarTitle.innerHTML = '<span>Delivery Portal:</span>';
@@ -135,18 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const user = window.kolaApi.auth.getUser();
-
-    // STRICT ROLE ACCESS SEPARATION:
-    // A customer cannot access courier operations
-    if (user?.role !== 'courier' && viewName === 'courier') {
-      showToast('Courier Operations is restricted to registered dispatch riders.', 'warning');
-      viewName = 'home';
-    }
-
-    // A courier cannot access customer delivery request form or customer home
-    if (user?.role === 'courier' && (viewName === 'home' || viewName === 'request' || viewName === 'account')) {
-      viewName = 'courier';
-    }
 
     if (viewName === 'request') {
       Object.keys(views).forEach(v => {
@@ -1067,8 +1055,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.status === 'Successful') {
         showToast('Payment confirmed! Courier dispatch initiated.', 'success');
         closePaymentModal();
-        // Redirect to tracking view
-        switchView('track', res.tracking_number);
+        loadActiveDelivery();
+        switchView('home');
       } else {
         showToast('Payment could not be verified: ' + (res.reason || 'Network error'), 'error');
       }
@@ -1118,8 +1106,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('trackDisplayId').textContent = delivery.tracking_number;
     document.getElementById('trackDisplayDate').textContent = new Date(delivery.created_at).toLocaleString();
 
-    // Render Status Stepper
+    // Render Status Stepper & Milestone Flow
     renderStatusStepper(delivery.status);
+    renderTimelineMilestones(delivery, history);
 
     // Handover Confirmation Cards
     const handoverActionCard = document.getElementById('trackHandoverActionCard');
@@ -1283,6 +1272,11 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('trackCourierVehicle').textContent = `${courier.vehicle_type} • Plate: ${courier.plate_number}`;
       document.getElementById('trackCourierCallBtn').href = `tel:${courier.phone}`;
       document.getElementById('trackCourierCallBtn').textContent = `Call ${courier.phone}`;
+      const trackAvatar = document.getElementById('trackCourierAvatar');
+      if (trackAvatar) {
+        const initials = courier.full_name.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+        trackAvatar.textContent = initials || 'CR';
+      }
     } else {
       courierBox.style.display = 'none';
     }
@@ -1367,7 +1361,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const user = window.kolaApi.auth.getUser();
     const token = window.kolaApi.auth.getToken();
 
-    if (!token || user?.role !== 'courier') {
+    if (!token || (user?.role !== 'courier' && user?.role !== 'admin')) {
       document.getElementById('courierAuthCard').style.display = 'block';
       document.getElementById('courierDashboardContent').style.display = 'none';
     } else {
@@ -1388,7 +1382,10 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const res = await window.kolaApi.auth.login(phone, pass);
         showToast(`Welcome, ${res.user.full_name}`, 'success');
+        checkAuthAndEnforceGate();
+        initRealtimeManager();
         initCourierView();
+        loadCourierTasks();
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1405,7 +1402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         taskContainer.innerHTML = `
           <div class="form-card" style="text-align: center; padding: 3rem;">
             <h3>No deliveries currently assigned.</h3>
-            <p style="color: var(--text-muted); margin-top: 0.5rem;">New assignments dispatched from admin will appear here.</p>
+            <p style="color: var(--text-muted); margin-top: 0.5rem;">New assignments dispatched from admin will appear here automatically in real time.</p>
           </div>
         `;
         return;
@@ -1419,8 +1416,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const isDelivered = del.status === 'Delivered';
         let actionBtnHtml = '';
 
-        if (del.status === 'Courier Assigned') {
-          actionBtnHtml = `<button class="btn-primary task-action-btn" data-id="${del.id}" data-status="Courier En Route to Pickup">I am heading to Pickup</button>`;
+        if (del.status === 'Courier Assigned' || del.status === 'Payment Confirmed' || del.status === 'Request Created') {
+          actionBtnHtml = `<button class="btn-primary task-action-btn" data-id="${del.id}" data-status="Courier En Route to Pickup" style="background:var(--kola-blue); color:white; font-weight:800; padding:0.6rem 1.25rem;">I am heading to Pickup</button>`;
         } else if (del.status === 'Courier En Route to Pickup') {
           actionBtnHtml = `<button class="btn-primary task-arrive-btn" data-id="${del.id}" style="background:var(--kola-blue); color:white; font-weight:800; padding:0.6rem 1.25rem;">📍 I've Arrived</button>`;
         } else if (del.status === 'Awaiting Sender Confirmation') {
@@ -1717,6 +1714,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`Welcome back, ${res.user.full_name}`, 'success');
         initAccountView();
         checkAuthAndEnforceGate();
+        initRealtimeManager();
+        loadActiveDelivery();
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1832,6 +1831,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.logout-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       window.kolaApi.auth.logout();
+      window.kolaApi.realtime.disconnect();
+      const activeSec = document.getElementById('activeDeliverySection');
+      if (activeSec) activeSec.style.display = 'none';
       showToast('Logged out of Kola Express', 'info');
       checkAuthAndEnforceGate();
     });
@@ -1893,6 +1895,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         showToast(`Welcome to Kola Express, ${res.user.full_name}!`, 'success');
         checkAuthAndEnforceGate();
+        initRealtimeManager();
+        loadActiveDelivery();
         switchView('home');
       } catch (err) {
         if (errorDiv) {
@@ -1928,10 +1932,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await window.kolaApi.auth.login(identifier, password);
         showToast(`Welcome back, ${res.user.full_name}!`, 'success');
         checkAuthAndEnforceGate();
+        initRealtimeManager();
         if (res.user.role === 'courier') {
           switchView('courier');
         } else {
           switchView('home');
+          loadActiveDelivery();
         }
       } catch (err) {
         if (errorDiv) {
@@ -2064,23 +2070,519 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         showToast(err.message, 'error');
       }
+    },
+    loadActiveDelivery() {
+      loadActiveDelivery();
     }
   };
+
+  // ===================================================================
+  // 9. AUTHORITATIVE REALTIME & ACTIVE DELIVERY DASHBOARD ENGINE
+  // ===================================================================
+  let currentActiveDelivery = null;
+
+  function getStageIndex(status) {
+    switch (status) {
+      case 'Request Created':
+      case 'Awaiting Payment':
+      case 'Payment Confirmed':
+        return 1;
+      case 'Courier Assigned':
+      case 'Courier En Route to Pickup':
+        return 2;
+      case 'Awaiting Sender Confirmation':
+      case 'Package Picked Up':
+      case 'Item Picked Up':
+        return 3;
+      case 'In Transit':
+        return 4;
+      case 'Near Destination':
+        return 5;
+      case 'Delivered':
+        return 6;
+      default:
+        return 1;
+    }
+  }
+
+  function updateActiveProgressNodes(currentStatus) {
+    const currentStage = getStageIndex(currentStatus);
+    const fillBar = document.getElementById('adProgressBarFill');
+    if (fillBar) {
+      const percentages = { 1: '8%', 2: '26%', 3: '46%', 4: '66%', 5: '86%', 6: '100%' };
+      fillBar.style.width = percentages[currentStage] || '15%';
+    }
+
+    const nodes = document.querySelectorAll('.ad-stage-node');
+    nodes.forEach(node => {
+      const stage = Number(node.dataset.stage);
+      const circle = node.querySelector('.node-circle');
+      node.classList.remove('completed', 'active');
+
+      if (stage < currentStage) {
+        node.classList.add('completed');
+        if (circle) circle.textContent = '✓';
+      } else if (stage === currentStage) {
+        node.classList.add('active');
+        if (circle) circle.textContent = currentStatus === 'Delivered' ? '✓' : '●';
+      } else {
+        if (circle) circle.textContent = '○';
+      }
+    });
+  }
+
+  function renderTimelineMilestones(delivery, history) {
+    const flowContainer = document.getElementById('timelineMilestonesFlow');
+    if (!flowContainer) return;
+
+    const currentStatus = delivery.status;
+    const currentStage = getStageIndex(currentStatus);
+
+    const statusBadge = document.getElementById('timelineStatusBadge');
+    if (statusBadge) {
+      statusBadge.textContent = currentStatus;
+    }
+
+    const courierText = delivery.courier_name 
+      ? `Assigned to ${delivery.courier_name} (${delivery.courier_plate || 'Boda Boda'})` 
+      : 'Assigning nearest verified courier';
+
+    const milestones = [
+      { stage: 1, title: 'Order Placed', desc: 'Delivery request created and cashless payment verified', matchStatuses: ['Request Created', 'Awaiting Payment', 'Payment Confirmed'] },
+      { stage: 2, title: 'Courier Assigned', desc: courierText, matchStatuses: ['Courier Assigned', 'Courier En Route to Pickup'] },
+      { stage: 3, title: 'Package Picked Up', desc: 'Physical package handover confirmed at pickup location', matchStatuses: ['Awaiting Sender Confirmation', 'Package Picked Up', 'Item Picked Up'] },
+      { stage: 4, title: 'In Transit', desc: 'Package is securely on the way towards destination', matchStatuses: ['In Transit'] },
+      { stage: 5, title: 'Arrived Near Destination', desc: `Courier arrived at destination area (${delivery.delivery_location})`, matchStatuses: ['Near Destination'] },
+      { stage: 6, title: 'Delivered', desc: 'Package verified with Special Delivery PIN and delivered', matchStatuses: ['Delivered'] }
+    ];
+
+    flowContainer.innerHTML = milestones.map(m => {
+      let stateClass = '';
+      let markerSymbol = '○';
+
+      if (m.stage < currentStage) {
+        stateClass = 'completed';
+        markerSymbol = '✓';
+      } else if (m.stage === currentStage) {
+        stateClass = 'active';
+        markerSymbol = currentStatus === 'Delivered' ? '✓' : '●';
+      }
+
+      let timeText = '';
+      if (history && history.length > 0) {
+        const histItem = history.find(h => m.matchStatuses.includes(h.status));
+        if (histItem) {
+          timeText = new Date(histItem.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+
+      return `
+        <div class="milestone-item ${stateClass}">
+          <div class="milestone-marker">${markerSymbol}</div>
+          <div class="milestone-content">
+            <div class="milestone-title">
+              <span>${m.title}</span>
+              ${stateClass === 'active' ? '<span class="timeline-status-badge" style="font-size:0.65rem; padding:0.15rem 0.5rem; margin-left:0.4rem;">CURRENT STAGE</span>' : ''}
+            </div>
+            ${timeText ? `<span class="milestone-time">${timeText}</span>` : ''}
+            <div class="milestone-desc">${m.desc}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function playNotificationChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.32);
+    } catch (e) {}
+  }
+
+  function showDeliveryStatusNotification(payload) {
+    const container = document.getElementById('deliveryNotificationContainer');
+    if (!container) return;
+
+    const { delivery, latest_update, status_meta, courier } = payload;
+    const status = delivery?.status || 'Update';
+    const trackingNumber = delivery?.tracking_number || '';
+
+    playNotificationChime();
+
+    const notif = document.createElement('div');
+    notif.className = 'delivery-status-notification';
+
+    let iconType = 'transit';
+    if (status === 'Delivered') iconType = 'delivered';
+    else if (['Near Destination', 'Awaiting Sender Confirmation'].includes(status)) iconType = 'arrived';
+
+    notif.innerHTML = `
+      <div class="ds-icon-box ${iconType}">
+        ${status_meta?.icon || '📦'}
+      </div>
+      <div class="ds-content">
+        <div class="ds-title">
+          <span>${escapeHtml(status_meta?.title || status)}</span>
+          <button type="button" class="ds-close-btn" aria-label="Dismiss">✕</button>
+        </div>
+        <p class="ds-message">${escapeHtml(status_meta?.message || latest_update?.note || 'Delivery status updated.')}</p>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="ds-ref">Kola Express #${escapeHtml(trackingNumber)}</span>
+          <button type="button" class="ad-copy-btn" onclick="window.kolaApp.viewTrack('${trackingNumber}')" style="padding:0.15rem 0.5rem; font-size:0.7rem;">View Live Tracking</button>
+        </div>
+      </div>
+    `;
+
+    const closeBtn = notif.querySelector('.ds-close-btn');
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        notif.classList.add('closing');
+        setTimeout(() => notif.remove(), 260);
+      };
+    }
+
+    container.appendChild(notif);
+
+    setTimeout(() => {
+      if (notif.parentNode) {
+        notif.classList.add('closing');
+        setTimeout(() => notif.remove(), 260);
+      }
+    }, 8000);
+  }
+
+  async function loadActiveDelivery() {
+    const user = window.kolaApi.auth.getUser();
+    const activeSection = document.getElementById('activeDeliverySection');
+    if (!activeSection) return;
+
+    if (!user || user.role === 'courier') {
+      activeSection.style.display = 'none';
+      return;
+    }
+
+    try {
+      const res = await window.kolaApi.deliveries.getActive();
+      if (!res || !res.active || !res.delivery) {
+        currentActiveDelivery = null;
+        activeSection.style.display = 'none';
+        return;
+      }
+
+      currentActiveDelivery = res;
+      renderActiveDeliveryCard(res);
+      activeSection.style.display = 'block';
+    } catch (err) {
+      // Quiet background failure
+    }
+  }
+
+  function renderActiveDeliveryCard(data) {
+    const { delivery, courier, latest_update, eta_text, status_meta } = data;
+    const activeSection = document.getElementById('activeDeliverySection');
+    if (!activeSection) return;
+
+    activeSection.style.display = 'block';
+
+    // Tracking Number / Ref
+    const trkEl = document.getElementById('adTrackingNumber');
+    if (trkEl) {
+      trkEl.textContent = `Kola Express #${delivery.tracking_number}`;
+    }
+
+    // Copy button
+    const copyBtn = document.getElementById('adCopyTrackingBtn');
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(delivery.tracking_number);
+        showToast(`Tracking reference copied: ${delivery.tracking_number}`, 'success');
+      };
+    }
+
+    // Status Pill & Icon
+    const statusPill = document.getElementById('adStatusPill');
+    const statusIcon = document.getElementById('adStatusIcon');
+    const statusName = document.getElementById('adStatusName');
+    if (statusPill && statusName) {
+      statusName.textContent = delivery.status.toUpperCase();
+      if (statusIcon) statusIcon.textContent = status_meta?.icon || '📦';
+
+      statusPill.className = 'ad-status-pill';
+      if (['Delivered', 'Package Picked Up', 'Payment Confirmed'].includes(delivery.status)) {
+        statusPill.classList.add('status-green');
+      } else if (['Awaiting Sender Confirmation', 'Near Destination'].includes(delivery.status)) {
+        statusPill.classList.add('status-amber');
+      } else {
+        statusPill.classList.add('status-blue');
+      }
+    }
+
+    // Headline & Description
+    const headlineEl = document.getElementById('adStatusHeadline');
+    const descEl = document.getElementById('adStatusDesc');
+    if (headlineEl) headlineEl.textContent = status_meta?.headline || `Status: ${delivery.status}`;
+    if (descEl) descEl.textContent = status_meta?.message || latest_update?.note || 'Your package is in progress.';
+
+    // ETA Badge
+    const etaVal = document.getElementById('adEtaValue');
+    if (etaVal) {
+      etaVal.textContent = eta_text || `${delivery.eta_minutes || 20} mins`;
+    }
+
+    // 6-Stage Progress Nodes
+    updateActiveProgressNodes(delivery.status);
+
+    // Courier Details
+    const courierAssignedInfo = document.getElementById('adCourierAssignedInfo');
+    const courierUnassignedNotice = document.getElementById('adCourierUnassignedNotice');
+    const courierNameEl = document.getElementById('adCourierName');
+    const courierVehicleEl = document.getElementById('adCourierVehicle');
+    const courierRatingEl = document.getElementById('adCourierRating');
+    const courierPhoneBtn = document.getElementById('adCourierPhoneBtn');
+
+    if (courier && courier.name) {
+      if (courierAssignedInfo) courierAssignedInfo.style.display = 'block';
+      if (courierUnassignedNotice) courierUnassignedNotice.style.display = 'none';
+      if (courierNameEl) courierNameEl.textContent = courier.name;
+      if (courierVehicleEl) courierVehicleEl.textContent = `${courier.vehicle || 'Boda Boda'} • Plate: ${courier.plate || '—'}`;
+      if (courierRatingEl) courierRatingEl.textContent = `★ ${courier.rating || 4.9} (${courier.total_trips || 0} trips)`;
+      if (courierPhoneBtn) {
+        courierPhoneBtn.href = `tel:${courier.phone}`;
+        courierPhoneBtn.textContent = `📞 Call ${courier.phone}`;
+      }
+      const courierAvatarEl = document.getElementById('adCourierAvatar');
+      if (courierAvatarEl) {
+        const initials = courier.name.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+        courierAvatarEl.textContent = initials || 'CR';
+      }
+    } else {
+      if (courierAssignedInfo) courierAssignedInfo.style.display = 'none';
+      if (courierUnassignedNotice) courierUnassignedNotice.style.display = 'flex';
+    }
+
+    // Locations
+    const pickupEl = document.getElementById('adPickupLocation');
+    const pickupDirEl = document.getElementById('adPickupDirections');
+    const dropoffEl = document.getElementById('adDropoffLocation');
+    const dropoffDirEl = document.getElementById('adDropoffDirections');
+    if (pickupEl) pickupEl.textContent = delivery.pickup_location || '—';
+    if (pickupDirEl) pickupDirEl.textContent = delivery.pickup_directions || 'Standard pickup';
+    if (dropoffEl) dropoffEl.textContent = delivery.delivery_location || '—';
+    if (dropoffDirEl) dropoffDirEl.textContent = delivery.delivery_directions || 'Call on arrival';
+
+    // Latest Update Box
+    const latestTimeEl = document.getElementById('adLatestUpdateTime');
+    const latestMsgEl = document.getElementById('adLatestUpdateMsg');
+    const latestMetaEl = document.getElementById('adLatestUpdateMeta');
+    if (latestTimeEl) {
+      latestTimeEl.textContent = latest_update?.formatted_time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    if (latestMsgEl) {
+      latestMsgEl.textContent = latest_update?.note || status_meta?.message || delivery.status;
+    }
+    if (latestMetaEl) {
+      latestMetaEl.textContent = latest_update?.updated_by ? `Updated by ${latest_update.updated_by}` : 'Kola Dispatch System';
+    }
+
+    // Contextual Handover Action Buttons
+    const handoverBar = document.getElementById('adHandoverActionButtons');
+    if (handoverBar) {
+      if (delivery.status === 'Awaiting Sender Confirmation') {
+        handoverBar.style.display = 'flex';
+        const btnConfirm = document.getElementById('btnAdConfirmHandover');
+        const btnDispute = document.getElementById('btnAdDisputeHandover');
+        if (btnConfirm) {
+          btnConfirm.onclick = async () => {
+            btnConfirm.disabled = true;
+            btnConfirm.textContent = 'Verifying Handover...';
+            try {
+              const res = await window.kolaApi.deliveries.confirmHandover(delivery.id);
+              showToast(res.message, 'success');
+              loadActiveDelivery();
+            } catch (e) {
+              showToast(e.message, 'error');
+            } finally {
+              btnConfirm.disabled = false;
+              btnConfirm.textContent = '✓ CONFIRM PACKAGE HANDOVER';
+            }
+          };
+        }
+        if (btnDispute) {
+          btnDispute.onclick = async () => {
+            btnDispute.disabled = true;
+            try {
+              const res = await window.kolaApi.deliveries.disputeHandover(delivery.id);
+              showToast(res.message, 'info');
+              loadActiveDelivery();
+            } catch (e) {
+              showToast(e.message, 'error');
+            } finally {
+              btnDispute.disabled = false;
+            }
+          };
+        }
+      } else {
+        handoverBar.style.display = 'none';
+      }
+    }
+
+    // Recipient PIN box
+    const pinContainer = document.getElementById('adPinContainer');
+    const pinCodeEl = document.getElementById('adDeliveryPin');
+    const btnCopyPin = document.getElementById('btnAdCopyPin');
+    const btnShareWhatsapp = document.getElementById('btnAdShareWhatsapp');
+
+    if (delivery.delivery_pin) {
+      if (pinContainer) pinContainer.style.display = 'flex';
+      if (pinCodeEl) pinCodeEl.textContent = delivery.delivery_pin;
+      if (btnCopyPin) {
+        btnCopyPin.onclick = () => {
+          navigator.clipboard.writeText(delivery.delivery_pin);
+          showToast(`Special Recipient PIN copied: ${delivery.delivery_pin}`, 'success');
+        };
+      }
+      if (btnShareWhatsapp) {
+        const cleanPhone = delivery.recipient_phone ? delivery.recipient_phone.replace(/[^0-9]/g, '') : '';
+        const intlPhone = cleanPhone.startsWith('0') ? '256' + cleanPhone.slice(1) : cleanPhone;
+        const shareMsg = `Hello ${delivery.recipient_name}, your package from ${delivery.sender_name} via Kola Express is en route! Your Special Delivery PIN is ${delivery.delivery_pin}. Please read this PIN to the courier upon arrival. Tracking: ${delivery.tracking_number}`;
+        btnShareWhatsapp.href = `https://api.whatsapp.com/send?phone=${intlPhone}&text=${encodeURIComponent(shareMsg)}`;
+      }
+    } else {
+      if (pinContainer) pinContainer.style.display = 'none';
+    }
+
+    // View full tracking button
+    const btnTrack = document.getElementById('btnAdViewTracking');
+    if (btnTrack) {
+      btnTrack.onclick = () => {
+        switchView('track', delivery.tracking_number);
+      };
+    }
+  }
+
+  function initRealtimeManager() {
+    const user = window.kolaApi.auth.getUser();
+    if (!user) return;
+
+    window.kolaApi.realtime.connect();
+
+    window.kolaApi.realtime.on('status', ({ status }) => {
+      const adRealtimePill = document.getElementById('adRealtimePill');
+      const adRealtimeStatus = document.getElementById('adRealtimeStatus');
+      if (adRealtimePill && adRealtimeStatus) {
+        adRealtimePill.className = `ad-realtime-pill ${status}`;
+        if (status === 'connected') {
+          adRealtimeStatus.textContent = 'Realtime Connected';
+        } else if (status === 'connecting' || status === 'reconnecting') {
+          adRealtimeStatus.textContent = 'Reconnecting...';
+        } else {
+          adRealtimeStatus.textContent = 'Offline';
+        }
+      }
+    });
+
+    window.kolaApi.realtime.on('connected', () => {
+      // Re-fetch latest authoritative active delivery on reconnect to prevent stale data
+      loadActiveDelivery();
+      const currentUser = window.kolaApi.auth.getUser();
+      if (currentUser?.role === 'courier' || currentUser?.role === 'admin' || (views.courier && views.courier.style.display !== 'none')) {
+        loadCourierTasks();
+      }
+    });
+
+    window.kolaApi.realtime.on('delivery_status_update', (payload) => {
+      if (!payload || !payload.delivery) return;
+
+      console.log('⚡ Immediate Realtime Delivery Update:', payload.delivery.tracking_number, payload.delivery.status);
+
+      // Show prominent floating toast notification for important delivery events
+      showDeliveryStatusNotification(payload);
+
+      // Immediately update the customer's Active Delivery dashboard card
+      renderActiveDeliveryCard(payload);
+
+      // If user is currently on Tracking page, refresh tracking details in-place
+      const trackingResultWrap = document.getElementById('trackingResultWrap');
+      const trackDisplayId = document.getElementById('trackDisplayId');
+      if (trackingResultWrap && trackingResultWrap.style.display !== 'none' && trackDisplayId) {
+        if (trackDisplayId.textContent.trim() === payload.delivery.tracking_number) {
+          performTrack(payload.delivery.tracking_number);
+        }
+      }
+
+      // If customer is on My Account page, refresh deliveries list
+      const accountDashboard = document.getElementById('accountDashboard');
+      if (accountDashboard && accountDashboard.style.display !== 'none') {
+        loadCustomerDeliveries();
+      }
+
+      // If courier or admin, or on Courier Tasks page, refresh courier tasks immediately
+      const currentUser = window.kolaApi.auth.getUser();
+      if (currentUser?.role === 'courier' || currentUser?.role === 'admin' || (views.courier && views.courier.style.display !== 'none')) {
+        loadCourierTasks();
+      }
+
+      // Check handover confirmation banner
+      checkActiveSenderHandovers();
+    });
+  }
 
   // Enforce access gate on initial page load
   const isInitiallyAuthenticated = checkAuthAndEnforceGate();
   if (isInitiallyAuthenticated) {
     const user = window.kolaApi.auth.getUser();
+    initRealtimeManager();
     if (user?.role === 'courier') {
       switchView('courier');
     } else {
       switchView('home');
+      loadActiveDelivery();
       checkActiveSenderHandovers();
     }
   }
 
-  // Background polling for courier arrival & sender handover confirmation
-  setInterval(checkActiveSenderHandovers, 15000);
+  // Network offline and online listeners for seamless reconnection
+  window.addEventListener('online', () => {
+    showToast('Internet connection restored — Synchronizing live delivery state...', 'success');
+    window.kolaApi.realtime.connect();
+    const currentUser = window.kolaApi.auth.getUser();
+    if (currentUser?.role === 'courier' || (views.courier && views.courier.style.display !== 'none')) {
+      loadCourierTasks();
+    } else {
+      loadActiveDelivery();
+    }
+  });
+
+  window.addEventListener('offline', () => {
+    showToast('Internet connection dropped — Operating offline until network returns', 'warning');
+    const adRealtimePill = document.getElementById('adRealtimePill');
+    const adRealtimeStatus = document.getElementById('adRealtimeStatus');
+    if (adRealtimePill) adRealtimePill.className = 'ad-realtime-pill disconnected';
+    if (adRealtimeStatus) adRealtimeStatus.textContent = 'Offline';
+  });
+
+  // Background fallback synchronization check (in case WebSocket or SSE is paused by browser tab sleep)
+  setInterval(() => {
+    const currentUser = window.kolaApi.auth.getUser();
+    if (currentUser?.role === 'courier' || (views.courier && views.courier.style.display !== 'none')) {
+      loadCourierTasks();
+    } else {
+      loadActiveDelivery();
+    }
+    checkActiveSenderHandovers();
+  }, 25000);
 
   // ===================================================================
   // 10. UTILITIES

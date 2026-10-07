@@ -49,6 +49,33 @@
       clearInterval(this.refreshInterval);
       document.getElementById('adminLoginPortal').style.display = 'flex';
       document.getElementById('adminAppLayout').style.display = 'none';
+      this.updatePresetBadges();
+    }
+
+    updatePresetBadges() {
+      const superSaved = localStorage.getItem('kola_admin_pwd_super_admin');
+      const opsSaved = localStorage.getItem('kola_admin_pwd_operations_admin');
+      const finSaved = localStorage.getItem('kola_admin_pwd_finance_admin');
+
+      const superSub = document.getElementById('superAdminPresetSubtitle');
+      const opsSub = document.getElementById('opsAdminPresetSubtitle');
+      const finSub = document.getElementById('financeAdminPresetSubtitle');
+      const syncNote = document.getElementById('presetSyncNote');
+
+      if (superSub) {
+        superSub.textContent = superSaved ? 'admin@kolaexpress.ug • Password Updated' : 'admin@kolaexpress.ug';
+      }
+      if (opsSub) {
+        opsSub.textContent = opsSaved ? 'ops@kolaexpress.ug • Password Updated' : 'ops@kolaexpress.ug';
+      }
+      if (finSub) {
+        finSub.textContent = finSaved ? 'finance@kolaexpress.ug • Password Updated' : 'finance@kolaexpress.ug';
+      }
+      if (syncNote) {
+        const anyUpdated = superSaved || opsSaved || finSaved;
+        syncNote.textContent = anyUpdated ? 'Syncing latest updated passwords' : 'Syncs updated passwords';
+        syncNote.style.color = anyUpdated ? '#34d399' : 'var(--text-dim)';
+      }
     }
 
     showAppLayout() {
@@ -87,14 +114,14 @@
       const isOps = this.currentRole === 'operations_admin' || isSuper;
       const isFinance = this.currentRole === 'finance_admin' || isSuper;
 
-      // Operations navigation
+      // Operations & Deliveries navigation (All admins can view; dispatch/actions gated by role)
       const navDeliveries = document.getElementById('navDeliveries');
       const navCouriers = document.getElementById('navCouriers');
       const navCustomers = document.getElementById('navCustomers');
 
-      if (navDeliveries) navDeliveries.style.display = isOps ? 'flex' : 'none';
+      if (navDeliveries) navDeliveries.style.display = 'flex';
       if (navCouriers) navCouriers.style.display = isOps ? 'flex' : 'none';
-      if (navCustomers) navCustomers.style.display = isOps ? 'flex' : 'none';
+      if (navCustomers) navCustomers.style.display = 'flex';
 
       // Finance navigation
       const secFinance = document.getElementById('sectionFinanceTitle');
@@ -160,18 +187,53 @@
         });
       }
 
-      // Quick Role Presets
+      // Toggle Password Visibility
+      document.getElementById('togglePasswordVisibilityBtn')?.addEventListener('click', () => {
+        const passInput = document.getElementById('loginPassword');
+        const icon = document.getElementById('togglePasswordIcon');
+        const text = document.getElementById('togglePasswordText');
+        if (!passInput) return;
+        if (passInput.type === 'password') {
+          passInput.type = 'text';
+          if (icon) icon.textContent = '🙈';
+          if (text) text.textContent = 'Hide';
+        } else {
+          passInput.type = 'password';
+          if (icon) icon.textContent = '👁️';
+          if (text) text.textContent = 'Show';
+        }
+      });
+
+      // Quick Role Presets (Preserves custom user inputs & synchronizes updated credentials)
+      const applyRolePreset = (role, email, defaultPass) => {
+        const idInput = document.getElementById('loginIdentifier');
+        const passInput = document.getElementById('loginPassword');
+        if (idInput) idInput.value = email;
+
+        // Retrieve remembered updated password if admin has changed it
+        const savedPass = localStorage.getItem('kola_admin_pwd_' + role);
+        const passToFill = savedPass || defaultPass;
+
+        if (passInput) {
+          passInput.value = passToFill;
+          passInput.focus();
+        }
+
+        const syncNote = document.getElementById('presetSyncNote');
+        if (syncNote) {
+          syncNote.textContent = savedPass ? `Using updated ${role.replace('_', ' ')} password` : `Default ${role.replace('_', ' ')} credentials`;
+          syncNote.style.color = savedPass ? '#34d399' : 'var(--text-dim)';
+        }
+      };
+
       document.getElementById('fillSuperAdmin')?.addEventListener('click', () => {
-        document.getElementById('loginIdentifier').value = 'admin@kolaexpress.ug';
-        document.getElementById('loginPassword').value = 'admin123';
+        applyRolePreset('super_admin', 'admin@kolaexpress.ug', 'admin123');
       });
       document.getElementById('fillOpsAdmin')?.addEventListener('click', () => {
-        document.getElementById('loginIdentifier').value = 'ops@kolaexpress.ug';
-        document.getElementById('loginPassword').value = 'ops123';
+        applyRolePreset('operations_admin', 'ops@kolaexpress.ug', 'ops123');
       });
       document.getElementById('fillFinanceAdmin')?.addEventListener('click', () => {
-        document.getElementById('loginIdentifier').value = 'finance@kolaexpress.ug';
-        document.getElementById('loginPassword').value = 'finance123';
+        applyRolePreset('finance_admin', 'finance@kolaexpress.ug', 'finance123');
       });
 
       // Navigation Links
@@ -211,6 +273,15 @@
       document.getElementById('deliveriesStatusFilter')?.addEventListener('change', () => this.loadDeliveries());
       document.getElementById('paymentsStatusFilter')?.addEventListener('change', () => this.loadPayments());
       document.getElementById('customersSearchInput')?.addEventListener('input', (e) => this.loadCustomers(e.target.value));
+
+      // Reports Refresh & Export CSV
+      document.getElementById('btnRefreshReports')?.addEventListener('click', () => {
+        this.loadReports(false);
+        this.showToast('Reports & analytics refreshed.', 'info');
+      });
+      document.getElementById('btnExportReportsCsv')?.addEventListener('click', () => {
+        this.exportReportsCsv();
+      });
 
       // Courier Modal Trigger & Submit
       document.getElementById('openAddCourierModalBtn')?.addEventListener('click', () => {
@@ -412,12 +483,20 @@
         }
 
         try {
+          const cleanPass = newPassword.trim();
           let res;
           if (targetType === 'role') {
-            res = await adminApi.staff.changePasswordByRole(role, newPassword);
+            res = await adminApi.staff.changePasswordByRole(role, cleanPass);
+            if (role) {
+              localStorage.setItem('kola_admin_pwd_' + role, cleanPass);
+            }
           } else {
-            res = await adminApi.staff.changePassword(staffId, newPassword);
+            res = await adminApi.staff.changePassword(staffId, cleanPass);
+            if (res.role) {
+              localStorage.setItem('kola_admin_pwd_' + res.role, cleanPass);
+            }
           }
+          this.updatePresetBadges();
           this.closeModal('modalChangeStaffPassword');
           this.showToast(res.message || 'Password updated successfully.', 'success');
           document.getElementById('changeStaffPasswordForm').reset();
@@ -456,7 +535,13 @@
         }
 
         try {
-          const res = await adminApi.auth.changeMyPassword(currentPassword, newPassword);
+          const cleanCurr = currentPassword.trim();
+          const cleanNew = newPassword.trim();
+          const res = await adminApi.auth.changeMyPassword(cleanCurr, cleanNew);
+          if (this.currentRole) {
+            localStorage.setItem('kola_admin_pwd_' + this.currentRole, cleanNew);
+          }
+          this.updatePresetBadges();
           this.closeModal('modalChangeMyPassword');
           this.showToast(res.message || 'Your password has been changed successfully.', 'success');
           document.getElementById('changeMyPasswordForm').reset();
@@ -617,7 +702,7 @@
         }
 
       } catch (err) {
-        if (!silent) this.showToast('Failed to load dashboard statistics: ' + err.message, 'error');
+        if (!silent) this.showToast('Unable to load production data: ' + err.message + '. Please try again or contact administrator.', 'error');
       }
     }
 
@@ -637,7 +722,7 @@
         this.updateOperationsDispatchControls(silent);
       } catch (err) {
         if (!silent && tbody) {
-          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:2rem; color:#f87171;">Error loading deliveries: ${this.escapeHtml(err.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:2rem; color:#f87171; font-weight:600;">⚠️ Unable to load production data: ${this.escapeHtml(err.message)}<br><small style="color:var(--text-muted); font-weight:normal; margin-top:0.4rem; display:block;">Please try again or contact the administrator. Real production records are preserved and never replaced with demo data.</small></td></tr>`;
         }
       }
     }
@@ -800,7 +885,7 @@
         this.renderCustomersTable();
       } catch (err) {
         if (!silent && tbody) {
-          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171;">Failed to load customers: ${this.escapeHtml(err.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#f87171; font-weight:600;">⚠️ Unable to load production customer directory: ${this.escapeHtml(err.message)}<br><small style="color:var(--text-muted); font-weight:normal; margin-top:0.4rem; display:block;">Please try again or contact the administrator.</small></td></tr>`;
         }
       }
     }
@@ -931,43 +1016,147 @@
     }
 
     // 6. REPORTS & ANALYTICS
-    async loadReports() {
+    async loadReports(silent = false) {
       try {
         const reports = await adminApi.finance.getReports();
         if (!reports) return;
 
-        document.getElementById('reportTotalRevenue').textContent = `UGX ${(reports.total_revenue || 0).toLocaleString()}`;
-        document.getElementById('reportFulfilledOrders').textContent = reports.completed_count || 0;
-        document.getElementById('reportCancelledOrders').textContent = reports.cancelled_count || 0;
-        document.getElementById('reportFleetSize').textContent = reports.fleet_size || 0;
+        // KPI Stat Tiles
+        const totalRevEl = document.getElementById('reportTotalRevenue');
+        if (totalRevEl) totalRevEl.textContent = `UGX ${(reports.total_revenue || 0).toLocaleString()}`;
+
+        const fulfilledEl = document.getElementById('reportFulfilledOrders');
+        if (fulfilledEl) fulfilledEl.textContent = (reports.completed_count || 0).toLocaleString();
+
+        const cancelledEl = document.getElementById('reportCancelledOrders');
+        if (cancelledEl) cancelledEl.textContent = (reports.cancelled_count || 0).toLocaleString();
+
+        const fleetEl = document.getElementById('reportFleetSize');
+        if (fleetEl) fleetEl.textContent = (reports.fleet_size || 0).toLocaleString();
 
         // Top Couriers Table
         const courierTbody = document.getElementById('reportCouriersTable');
-        if (reports.top_couriers && reports.top_couriers.length > 0) {
-          courierTbody.innerHTML = reports.top_couriers.map(c => `
-            <tr>
-              <td style="font-weight:700;">${this.escapeHtml(c.name)}</td>
-              <td style="font-family:var(--font-mono); font-size:0.8rem;">${this.escapeHtml(c.phone)}</td>
-              <td>${this.escapeHtml(c.vehicle_type || 'Motorcycle')}</td>
-              <td style="font-weight:800; color:#34d399; text-align:center;">${c.completed_count} trips</td>
-            </tr>
-          `).join('');
-        } else {
-          courierTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:1rem;">No courier trip metrics recorded yet.</td></tr>';
+        const couriersList = reports.top_couriers || reports.courierRankings || [];
+        if (courierTbody) {
+          if (couriersList.length > 0) {
+            courierTbody.innerHTML = couriersList.map(c => `
+              <tr>
+                <td style="font-weight:700;">${this.escapeHtml(c.name || c.full_name || 'Courier')}</td>
+                <td style="font-family:var(--font-mono); font-size:0.8rem;">${this.escapeHtml(c.phone || '—')}</td>
+                <td>${this.escapeHtml(c.vehicle_type || 'Boda Boda')}</td>
+                <td style="font-weight:800; color:#34d399; text-align:center;">${c.completed_count ?? c.total_trips ?? 0} trips</td>
+              </tr>
+            `).join('');
+          } else {
+            courierTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:1rem;">No courier trip metrics recorded yet.</td></tr>';
+          }
         }
 
         // Status Distribution
         const distContainer = document.getElementById('reportStatusDistribution');
-        if (reports.status_breakdown) {
-          distContainer.innerHTML = Object.entries(reports.status_breakdown).map(([st, cnt]) => `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background:rgba(255,255,255,0.02); border-radius:var(--radius-sm); border:1px solid var(--border-color);">
-              <div>${this.renderStatusPill(st)}</div>
-              <span style="font-weight:800; font-size:0.95rem;">${cnt}</span>
-            </div>
-          `).join('');
+        if (distContainer) {
+          const breakdown = reports.status_breakdown || {};
+          const entries = Object.entries(breakdown);
+          if (entries.length > 0) {
+            distContainer.innerHTML = entries.map(([st, cnt]) => `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.85rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); border:1px solid var(--border-color);">
+                <div>${this.renderStatusPill(st)}</div>
+                <span style="font-weight:800; font-size:1rem; color:var(--text-primary);">${cnt}</span>
+              </div>
+            `).join('');
+          } else if (Array.isArray(reports.statusDistribution) && reports.statusDistribution.length > 0) {
+            distContainer.innerHTML = reports.statusDistribution.map(s => `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.85rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); border:1px solid var(--border-color);">
+                <div>${this.renderStatusPill(s.status)}</div>
+                <span style="font-weight:800; font-size:1rem; color:var(--text-primary);">${s.count}</span>
+              </div>
+            `).join('');
+          } else {
+            distContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1rem;">No status data available.</div>';
+          }
+        }
+
+        // Payment Channels Breakdown
+        const channelsContainer = document.getElementById('reportPaymentChannels');
+        if (channelsContainer) {
+          const methods = reports.paymentMethods || reports.payment_methods || [];
+          if (methods.length > 0) {
+            const totalVol = methods.reduce((acc, m) => acc + (m.total_volume || 0), 0) || 1;
+            channelsContainer.innerHTML = methods.map(m => {
+              const pct = Math.round(((m.total_volume || 0) / totalVol) * 100);
+              const isMtn = (m.payment_method || '').toLowerCase().includes('mtn');
+              const color = isMtn ? '#eab308' : '#ef4444';
+              const label = isMtn ? 'MTN Mobile Money' : (m.payment_method.toLowerCase().includes('airtel') ? 'Airtel Money' : m.payment_method);
+              return `
+                <div style="padding:0.75rem 1rem; background:rgba(255,255,255,0.02); border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-bottom:0.75rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                    <span style="font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+                      <span style="width:8px; height:8px; border-radius:50%; background:${color}; display:inline-block;"></span>
+                      ${this.escapeHtml(label)}
+                    </span>
+                    <span style="font-weight:800; color:var(--text-primary);">UGX ${(m.total_volume || 0).toLocaleString()} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${pct}%)</span></span>
+                  </div>
+                  <div style="height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                    <div style="width:${pct}%; height:100%; background:${color}; border-radius:3px;"></div>
+                  </div>
+                  <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">${m.count} successful transactions</div>
+                </div>
+              `;
+            }).join('');
+          } else {
+            channelsContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1rem;">No payments recorded yet.</div>';
+          }
+        }
+
+        // Daily Trends Table
+        const trendsTbody = document.getElementById('reportDailyTrendsTable');
+        if (trendsTbody) {
+          const trends = reports.dailyTrends || [];
+          if (trends.length > 0) {
+            trendsTbody.innerHTML = trends.map(d => `
+              <tr>
+                <td style="font-family:var(--font-mono); font-weight:600;">${d.date}</td>
+                <td style="text-align:center;">${d.orders}</td>
+                <td style="text-align:center; color:#34d399; font-weight:700;">${d.delivered}</td>
+                <td style="text-align:center; color:#f43f5e;">${d.cancelled}</td>
+                <td style="text-align:right; font-weight:800; color:#38bdf8;">UGX ${(d.revenue || 0).toLocaleString()}</td>
+              </tr>
+            `).join('');
+          } else {
+            trendsTbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:1rem;">No activity recorded in the last 14 days.</td></tr>';
+          }
         }
       } catch (err) {
-        this.showToast('Failed to load reports: ' + err.message, 'error');
+        console.error('Reports load error:', err);
+        if (!silent) this.showToast('Failed to load reports: ' + err.message, 'error');
+      }
+    }
+
+    exportReportsCsv() {
+      try {
+        const rev = document.getElementById('reportTotalRevenue')?.textContent || 'UGX 0';
+        const completed = document.getElementById('reportFulfilledOrders')?.textContent || '0';
+        const cancelled = document.getElementById('reportCancelledOrders')?.textContent || '0';
+        const fleet = document.getElementById('reportFleetSize')?.textContent || '0';
+
+        let csv = 'KOLA EXPRESS - FINANCIAL & OPERATIONAL REPORT\\n';
+        csv += `Generated At,${new Date().toISOString()}\\n\\n`;
+        csv += 'SUMMARY METRICS\\n';
+        csv += `Total Verified Inflow,${rev.replace(/,/g, '')}\\n`;
+        csv += `Fulfilled Orders,${completed}\\n`;
+        csv += `Cancelled Orders,${cancelled}\\n`;
+        csv += `Fleet Size,${fleet}\\n\\n`;
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', `kola_express_financial_report_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        this.showToast('Financial report CSV downloaded.', 'success');
+      } catch (e) {
+        this.showToast('Export failed: ' + e.message, 'error');
       }
     }
 

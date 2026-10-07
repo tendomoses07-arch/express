@@ -181,13 +181,34 @@ router.post('/login', (req, res) => {
       }
     }
 
+    // Also support admin username / role lookup (admin, super_admin, ops, finance, full names)
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials. Please check your phone/email and password.' });
+      const lower = loginTarget.toLowerCase();
+      let roleTarget = null;
+      if (['admin', 'superadmin', 'super_admin', 'super admin', 'administrator', 'kola administrator'].includes(lower)) {
+        roleTarget = 'super_admin';
+      } else if (['ops', 'operations', 'operations_admin', 'operations admin', 'operations director'].includes(lower)) {
+        roleTarget = 'operations_admin';
+      } else if (['finance', 'finance_admin', 'finance admin', 'finance officer'].includes(lower)) {
+        roleTarget = 'finance_admin';
+      }
+
+      if (roleTarget) {
+        user = db.prepare("SELECT * FROM users WHERE admin_role = ? AND role = 'admin' ORDER BY id ASC LIMIT 1").get(roleTarget);
+      } else {
+        user = db.prepare("SELECT * FROM users WHERE LOWER(full_name) = LOWER(?) AND role = 'admin' LIMIT 1").get(loginTarget);
+      }
     }
 
-    const valid = bcrypt.compareSync(password, user.password_hash);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials. Please check your phone/email/username.' });
+    }
+
+    const cleanPassword = typeof password === 'string' ? password : String(password);
+    const valid = bcrypt.compareSync(cleanPassword, user.password_hash) || 
+                  bcrypt.compareSync(cleanPassword.trim(), user.password_hash);
     if (!valid) {
-      return res.status(401).json({ error: 'Invalid credentials. Please check your phone/email and password.' });
+      return res.status(401).json({ error: 'Invalid credentials. Password does not match.' });
     }
 
     if (user.is_active === 0) {

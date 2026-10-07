@@ -6,7 +6,14 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node server/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "db:validate": "node server/scripts/validate-migrations.js",
+    "db:deploy": "node server/scripts/deploy-migrations.js",
+    "db:export": "node server/scripts/sync-sqlite-to-supabase.js --export-only",
+    "db:sync": "node server/scripts/sync-sqlite-to-supabase.js",
+    "db:migrate:new": "npx supabase migration new",
+    "db:migrate:push": "npx supabase db push",
+    "db:link": "npx supabase link",
+    "test": "node server/scripts/validate-migrations.js"
   },
   "keywords": [],
   "author": "",
@@ -16,11 +23,13 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1"
   }
 }

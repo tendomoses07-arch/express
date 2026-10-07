@@ -181,8 +181,9 @@ function initDatabase() {
   try {
     const userCols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
     if (!userCols.includes('admin_role')) {
-      db.exec("ALTER TABLE users ADD COLUMN admin_role TEXT DEFAULT 'super_admin';");
+      db.exec("ALTER TABLE users ADD COLUMN admin_role TEXT;");
     }
+    db.exec("UPDATE users SET admin_role = NULL WHERE role != 'admin' AND admin_role IS NOT NULL;");
     if (!userCols.includes('is_active')) {
       db.exec("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1;");
     }
@@ -227,13 +228,52 @@ function initDatabase() {
       { name: 'pickup_lng', type: 'REAL' },
       { name: 'delivery_lat', type: 'REAL' },
       { name: 'delivery_lng', type: 'REAL' },
-      { name: 'eta_minutes', type: 'INTEGER' }
+      { name: 'eta_minutes', type: 'INTEGER' },
+      { name: 'pickup_address', type: 'TEXT' },
+      { name: 'pickup_latitude', type: 'REAL' },
+      { name: 'pickup_longitude', type: 'REAL' },
+      { name: 'dropoff_address', type: 'TEXT' },
+      { name: 'dropoff_latitude', type: 'REAL' },
+      { name: 'dropoff_longitude', type: 'REAL' },
+      { name: 'road_distance', type: 'REAL' },
+      { name: 'estimated_travel_time', type: 'INTEGER' },
+      { name: 'base_delivery_fee', type: 'INTEGER DEFAULT 4000' },
+      { name: 'distance_fee', type: 'INTEGER DEFAULT 0' },
+      { name: 'surcharges', type: 'INTEGER DEFAULT 0' },
+      { name: 'discounts', type: 'INTEGER DEFAULT 0' },
+      { name: 'final_delivery_fee', type: 'INTEGER' },
+      { name: 'pricing_version', type: "TEXT DEFAULT 'v1.0'" },
+      { name: 'routing_provider', type: "TEXT DEFAULT 'osrm'" },
+      { name: 'route_reference', type: 'TEXT' },
+      { name: 'pricing_calculation_timestamp', type: 'DATETIME' }
     ];
     newCols.forEach(col => {
       if (!deliveryCols.includes(col.name)) {
         db.exec(`ALTER TABLE deliveries ADD COLUMN ${col.name} ${col.type};`);
       }
     });
+
+    // Backfill delivery pricing columns if null
+    db.exec(`
+      UPDATE deliveries 
+      SET pickup_address = COALESCE(pickup_address, pickup_location),
+          pickup_latitude = COALESCE(pickup_latitude, pickup_lat),
+          pickup_longitude = COALESCE(pickup_longitude, pickup_lng),
+          dropoff_address = COALESCE(dropoff_address, delivery_location),
+          dropoff_latitude = COALESCE(dropoff_latitude, delivery_lat),
+          dropoff_longitude = COALESCE(dropoff_longitude, delivery_lng),
+          road_distance = COALESCE(road_distance, distance_km),
+          estimated_travel_time = COALESCE(estimated_travel_time, eta_minutes),
+          final_delivery_fee = COALESCE(final_delivery_fee, delivery_fee),
+          base_delivery_fee = COALESCE(base_delivery_fee, 4000),
+          distance_fee = COALESCE(distance_fee, MAX(0, delivery_fee - 4000)),
+          surcharges = COALESCE(surcharges, CASE WHEN is_urgent = 1 THEN 3000 ELSE 0 END),
+          discounts = COALESCE(discounts, 0),
+          pricing_version = COALESCE(pricing_version, 'v1.0'),
+          routing_provider = COALESCE(routing_provider, 'osrm'),
+          pricing_calculation_timestamp = COALESCE(pricing_calculation_timestamp, created_at)
+      WHERE pickup_address IS NULL OR dropoff_address IS NULL OR final_delivery_fee IS NULL;
+    `);
 
     // Ensure all 3 administrative roles exist: Super Admin, Operations Admin, and Finance Admin
     const ensureAdmin = (fullName, email, phone, role, adminRole, plainPassword) => {
@@ -333,9 +373,14 @@ function initDatabase() {
       `).run(sampleDelivery.id);
     }
 
-    // Ensure active Awaiting Sender Confirmation demo delivery exists for instant interactive testing
-    const activeAwaiting = db.prepare("SELECT * FROM deliveries WHERE tracking_number = 'KOLA-20261005-000188'").get();
-    if (!activeAwaiting) {
+    // Production Safeguard: Never automatically insert demo deliveries in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const allowDemoSeed = process.env.ALLOW_DEMO_SEED === 'true' || process.env.DEMO_MODE === 'true';
+
+    // Demo delivery injection strictly disabled in production
+    if (!isProduction && allowDemoSeed) {
+      const activeAwaiting = db.prepare("SELECT * FROM deliveries WHERE tracking_number = 'KOLA-20261005-000188'").get();
+      if (!activeAwaiting) {
       const sarahUser = db.prepare("SELECT id FROM users WHERE phone = '0775123456'").get();
       const musaCourier = db.prepare("SELECT id FROM couriers WHERE phone = '0772100201'").get();
       if (sarahUser && musaCourier) {
@@ -386,6 +431,7 @@ function initDatabase() {
         `).run(dId);
       }
     }
+  }
   } catch (colErr) {
     console.warn('Deliveries table column migration warning:', colErr.message);
   }
@@ -394,6 +440,9 @@ function initDatabase() {
 }
 
 function seedInitialData() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const allowDemoSeed = process.env.ALLOW_DEMO_SEED === 'true' || process.env.DEMO_MODE === 'true';
+
   // Check if pricing rules exist
   const existingRules = db.prepare('SELECT * FROM pricing_rules LIMIT 1').get();
   if (!existingRules) {
@@ -419,52 +468,55 @@ function seedInitialData() {
     const courierPass = bcrypt.hashSync('courier123', 10);
     const customerPass = bcrypt.hashSync('customer123', 10);
 
-    // Admin user
+    // Baseline administrative staff (always created so portal is securely accessible)
     const adminInsert = db.prepare(`
-      INSERT INTO users (full_name, phone, email, password_hash, role)
-      VALUES (?, ?, ?, ?, ?)
-    `).run('Kola Administrator', '0700000000', 'admin@kolaexpress.ug', adminPass, 'admin');
+      INSERT INTO users (full_name, phone, email, password_hash, role, admin_role)
+      VALUES (?, ?, ?, ?, 'admin', 'super_admin')
+    `).run('Kola Administrator', '0700000000', 'admin@kolaexpress.ug', adminPass);
 
-    // Courier users
-    const c1 = db.prepare(`
-      INSERT INTO users (full_name, phone, email, password_hash, role)
-      VALUES (?, ?, ?, ?, ?)
-    `).run('Musa Ssewankambo', '0772100201', 'musa@kolaexpress.ug', courierPass, 'courier');
+    // In production, NEVER automatically insert demo couriers, sample customers, or demo deliveries
+    if (!isProduction && allowDemoSeed) {
+      // Courier users for local demo testing
+      const c1 = db.prepare(`
+        INSERT INTO users (full_name, phone, email, password_hash, role)
+        VALUES (?, ?, ?, ?, ?)
+      `).run('Musa Ssewankambo', '0772100201', 'musa@kolaexpress.ug', courierPass, 'courier');
 
-    const c2 = db.prepare(`
-      INSERT INTO users (full_name, phone, email, password_hash, role)
-      VALUES (?, ?, ?, ?, ?)
-    `).run('Denis Okello', '0701445678', 'denis@kolaexpress.ug', courierPass, 'courier');
+      const c2 = db.prepare(`
+        INSERT INTO users (full_name, phone, email, password_hash, role)
+        VALUES (?, ?, ?, ?, ?)
+      `).run('Denis Okello', '0701445678', 'denis@kolaexpress.ug', courierPass, 'courier');
 
-    const c3 = db.prepare(`
-      INSERT INTO users (full_name, phone, email, password_hash, role)
-      VALUES (?, ?, ?, ?, ?)
-    `).run('Brian Katende', '0782555901', 'brian@kolaexpress.ug', courierPass, 'courier');
+      const c3 = db.prepare(`
+        INSERT INTO users (full_name, phone, email, password_hash, role)
+        VALUES (?, ?, ?, ?, ?)
+      `).run('Brian Katende', '0782555901', 'brian@kolaexpress.ug', courierPass, 'courier');
 
-    // Customer user
-    db.prepare(`
-      INSERT INTO users (full_name, phone, email, password_hash, role)
-      VALUES (?, ?, ?, ?, ?)
-    `).run('Sarah Namubiru', '0775123456', 'sarah@example.com', customerPass, 'customer');
+      // Customer user for local demo testing
+      db.prepare(`
+        INSERT INTO users (full_name, phone, email, password_hash, role)
+        VALUES (?, ?, ?, ?, ?)
+      `).run('Sarah Namubiru', '0775123456', 'sarah@example.com', customerPass, 'customer');
 
-    // Couriers table records
-    db.prepare(`
-      INSERT INTO couriers (user_id, full_name, phone, vehicle_type, plate_number, status, rating, total_trips)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(c1.lastInsertRowid, 'Musa Ssewankambo', '0772100201', 'Boda Boda (Bajaj Boxer)', 'UFA 482B', 'active', 4.95, 142);
+      // Couriers table records
+      db.prepare(`
+        INSERT INTO couriers (user_id, full_name, phone, vehicle_type, plate_number, status, rating, total_trips)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(c1.lastInsertRowid, 'Musa Ssewankambo', '0772100201', 'Boda Boda (Bajaj Boxer)', 'UFA 482B', 'active', 4.95, 142);
 
-    db.prepare(`
-      INSERT INTO couriers (user_id, full_name, phone, vehicle_type, plate_number, status, rating, total_trips)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(c2.lastInsertRowid, 'Denis Okello', '0701445678', 'Boda Boda (TVS HLX)', 'UFE 912K', 'active', 4.88, 98);
+      db.prepare(`
+        INSERT INTO couriers (user_id, full_name, phone, vehicle_type, plate_number, status, rating, total_trips)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(c2.lastInsertRowid, 'Denis Okello', '0701445678', 'Boda Boda (TVS HLX)', 'UFE 912K', 'active', 4.88, 98);
 
-    db.prepare(`
-      INSERT INTO couriers (user_id, full_name, phone, vehicle_type, plate_number, status, rating, total_trips)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(c3.lastInsertRowid, 'Brian Katende', '0782555901', 'Boda Boda (Yamaha Crux)', 'UFB 334M', 'active', 4.92, 115);
+      db.prepare(`
+        INSERT INTO couriers (user_id, full_name, phone, vehicle_type, plate_number, status, rating, total_trips)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(c3.lastInsertRowid, 'Brian Katende', '0782555901', 'Boda Boda (Yamaha Crux)', 'UFB 334M', 'active', 4.92, 115);
 
-    // Seed sample deliveries
-    seedSampleDeliveries();
+      // Seed sample deliveries only in demo development mode
+      seedSampleDeliveries();
+    }
   }
 }
 

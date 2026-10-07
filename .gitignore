@@ -3,7 +3,23 @@ scratch/
 *.log
 .DS_Store
 Thumbs.db
-.env
-.env*
-**/.env
 
+# Environment variables & secrets (NEVER commit to GitHub)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+**/.env
+!.env.example
+
+# Supabase CLI local state (migrations in supabase/migrations ARE tracked)
+.supabase/
+supabase/.temp/
+
+# SQLite Database Files (Preserve live production data; never overwrite via Git)
+*.db
+*.db-journal
+server/*.db
+server/kola_express.db
+*.backup
