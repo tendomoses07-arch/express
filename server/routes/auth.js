@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { db } = require('../db');
 const { sanitizeAndValidateUgandaPhone } = require('../paymentGateway');
+const emailService = require('../services/emailService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'kola_express_secret_jwt_key_2026';
 
@@ -284,6 +286,258 @@ router.get('/me', authenticateToken, (req, res) => {
     res.json({ user, courier });
   } catch (err) {
     res.status(500).json({ error: 'Failed to retrieve profile' });
+  }
+});
+
+// ===================================================================
+// PASSWORD RECOVERY / RESET (EMAIL PREFERRED)
+// ===================================================================
+
+// 1. Request Password Recovery Code
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    const target = (identifier || '').trim();
+
+    if (!target) {
+      return res.status(400).json({ error: 'Please enter your registered email address or phone number.' });
+    }
+
+    // Lookup user:
+    // 1. By email
+    let user = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE LOWER(email) = LOWER(?)').get(target);
+
+    // 2. By phone
+    if (!user) {
+      user = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE phone = ?').get(target);
+      if (!user) {
+        const pCheck = sanitizeAndValidateUgandaPhone(target);
+        if (pCheck.valid) {
+          user = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE phone = ?').get(pCheck.formattedPhone);
+        }
+      }
+    }
+
+    // 3. By admin role alias (admin, ops, finance)
+    if (!user) {
+      const lower = target.toLowerCase();
+      let roleTarget = null;
+      if (['admin', 'superadmin', 'super_admin', 'super admin'].includes(lower)) roleTarget = 'super_admin';
+      else if (['ops', 'operations', 'operations_admin', 'operations admin'].includes(lower)) roleTarget = 'operations_admin';
+      else if (['finance', 'finance_admin', 'finance admin'].includes(lower)) roleTarget = 'finance_admin';
+
+      if (roleTarget) {
+        user = db.prepare("SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE admin_role = ? AND role = 'admin' LIMIT 1").get(roleTarget);
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        error: 'No account found matching this email or phone number. Please check your credentials or create a new account.'
+      });
+    }
+
+    if (user.is_active === 0) {
+      return res.status(403).json({ error: 'This account has been deactivated. Please contact Kola Express support.' });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({
+        error: 'This account does not have a registered email address. Password recovery is exclusively via email. Please contact support.'
+      });
+    }
+
+    // Generate 6-digit verification code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate secure 32-byte hex token
+    const token = crypto.randomBytes(32).toString('hex');
+
+    // 15 minutes expiry
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    // Invalidate prior unused reset tokens for this user
+    db.prepare('DELETE FROM password_resets WHERE user_id = ? AND used_at IS NULL').run(user.id);
+
+    // Save into password_resets table
+    db.prepare(`
+      INSERT INTO password_resets (user_id, email, token, code, expires_at, ip_address)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(user.id, user.email, token, code, expiresAt, ipAddress);
+
+    // Formulate 1-click reset link
+    const host = req.headers.host || 'localhost:3000';
+    const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+    const origin = req.headers.origin || `${proto}://${host}`;
+    const resetLink = `${origin.replace(/\/$/, '')}/#reset-token=${token}`;
+
+    // Send recovery email
+    await emailService.sendPasswordRecoveryEmail({
+      to: user.email,
+      name: user.full_name,
+      code,
+      resetLink,
+      token
+    });
+
+    const masked = emailService.maskEmail(user.email);
+
+    res.json({
+      success: true,
+      message: `A recovery code has been sent to your registered email (${masked}).`,
+      masked_email: masked,
+      token,
+      expires_in_minutes: 15,
+      dev_code: (process.env.NODE_ENV !== 'production' ? code : undefined)
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ error: 'Failed to initiate password recovery: ' + err.message });
+  }
+});
+
+// 2. Verify Recovery Code or Token
+router.post('/verify-reset-code', (req, res) => {
+  try {
+    const { token, code, identifier } = req.body;
+    const cleanCode = (code || '').trim();
+
+    if (!cleanCode && !token) {
+      return res.status(400).json({ error: 'Verification code or reset token is required.' });
+    }
+
+    let resetRecord = null;
+    const nowIso = new Date().toISOString();
+
+    if (cleanCode && token) {
+      // Both token and code supplied - must match both
+      resetRecord = db.prepare(`
+        SELECT pr.*, u.full_name 
+        FROM password_resets pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE pr.token = ? AND pr.code = ? AND pr.used_at IS NULL AND pr.expires_at > ?
+      `).get(token, cleanCode, nowIso);
+    } else if (cleanCode && identifier) {
+      // Code and identifier (email or phone) supplied
+      const idTrim = identifier.trim().toLowerCase();
+      resetRecord = db.prepare(`
+        SELECT pr.*, u.full_name 
+        FROM password_resets pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE pr.code = ? AND (LOWER(pr.email) = ? OR u.phone = ?) AND pr.used_at IS NULL AND pr.expires_at > ?
+        ORDER BY pr.id DESC LIMIT 1
+      `).get(cleanCode, idTrim, idTrim, nowIso);
+    } else if (cleanCode) {
+      // Code alone supplied
+      resetRecord = db.prepare(`
+        SELECT pr.*, u.full_name 
+        FROM password_resets pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE pr.code = ? AND pr.used_at IS NULL AND pr.expires_at > ?
+        ORDER BY pr.id DESC LIMIT 1
+      `).get(cleanCode, nowIso);
+    } else if (token) {
+      // Token alone supplied (e.g., 1-click link)
+      resetRecord = db.prepare(`
+        SELECT pr.*, u.full_name 
+        FROM password_resets pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE pr.token = ? AND pr.used_at IS NULL AND pr.expires_at > ?
+      `).get(token, nowIso);
+    }
+
+    if (!resetRecord) {
+      return res.status(400).json({
+        error: 'Invalid or expired recovery code. Please check the code or request a new one.'
+      });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      token: resetRecord.token,
+      masked_email: emailService.maskEmail(resetRecord.email)
+    });
+  } catch (err) {
+    console.error('Verify code error:', err);
+    res.status(500).json({ error: 'Verification failed: ' + err.message });
+  }
+});
+
+// 3. Complete Password Reset
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, code, new_password } = req.body;
+
+    if (!new_password || typeof new_password !== 'string' || new_password.trim().length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters long.' });
+    }
+
+    if (!token && !code) {
+      return res.status(400).json({ error: 'Reset token or verification code is required.' });
+    }
+
+    const nowIso = new Date().toISOString();
+    let resetRecord = null;
+
+    if (token) {
+      resetRecord = db.prepare(`
+        SELECT pr.*, u.full_name, u.role, u.admin_role
+        FROM password_resets pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE pr.token = ? AND pr.used_at IS NULL AND pr.expires_at > ?
+      `).get(token, nowIso);
+    }
+
+    if (!resetRecord && code) {
+      resetRecord = db.prepare(`
+        SELECT pr.*, u.full_name, u.role, u.admin_role
+        FROM password_resets pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE pr.code = ? AND pr.used_at IS NULL AND pr.expires_at > ?
+        ORDER BY pr.id DESC LIMIT 1
+      `).get(code.trim(), nowIso);
+    }
+
+    if (!resetRecord) {
+      return res.status(400).json({
+        error: 'This password reset session has expired or is invalid. Please request a new recovery code.'
+      });
+    }
+
+    const cleanPassword = new_password.trim();
+    const password_hash = bcrypt.hashSync(cleanPassword, 10);
+
+    // Update password in database
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(password_hash, resetRecord.user_id);
+
+    // Mark current reset token as used
+    db.prepare('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(resetRecord.id);
+
+    // Invalidate any other active reset tokens for this user
+    db.prepare('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND used_at IS NULL').run(resetRecord.user_id);
+
+    // If admin, log to admin_logs
+    if (resetRecord.role === 'admin') {
+      db.prepare(`
+        INSERT INTO admin_logs (admin_id, admin_name, admin_role, action, resource, details)
+        VALUES (?, ?, ?, 'PASSWORD_RECOVERED', 'USERS', ?)
+      `).run(resetRecord.user_id, resetRecord.full_name, resetRecord.admin_role || 'admin', `Password recovered via email verification (${resetRecord.email})`);
+    }
+
+    // Send confirmation security notification
+    await emailService.sendPasswordChangedConfirmationEmail({
+      to: resetRecord.email,
+      name: resetRecord.full_name
+    });
+
+    res.json({
+      success: true,
+      message: 'Your password has been successfully reset! You can now log in with your new password.'
+    });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset password: ' + err.message });
   }
 });
 

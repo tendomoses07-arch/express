@@ -77,6 +77,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Universal Password Visibility Toggle Handler
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.password-toggle-btn');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const wrap = btn.closest('.password-input-wrap');
+    const input = wrap ? wrap.querySelector('input') : (btn.dataset.target ? document.getElementById(btn.dataset.target) : null);
+    if (!input) return;
+
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+
+    const showIcon = btn.querySelector('.eye-show');
+    const hideIcon = btn.querySelector('.eye-hide');
+    if (showIcon && hideIcon) {
+      showIcon.style.display = isPass ? 'none' : 'block';
+      hideIcon.style.display = isPass ? 'block' : 'none';
+    }
+
+    const label = isPass ? 'Hide password' : 'Show password';
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+
+    try {
+      input.focus();
+      const valLen = input.value.length;
+      input.setSelectionRange(valLen, valLen);
+    } catch (_) {}
+  });
+
   // Logout Handlers
   [headerLogoutBtn, adminLogoutBtn].forEach(btn => {
     if (btn) {
@@ -598,5 +630,245 @@ document.addEventListener('DOMContentLoaded', () => {
       toast.style.transform = 'translateY(10px)';
       setTimeout(() => toast.remove(), 300);
     }, 4000);
+  }
+
+  // ===================================================================
+  // ADMIN PASSWORD RECOVERY MANAGER
+  // ===================================================================
+  const modalRecovery = document.getElementById('modalPasswordRecovery');
+  const formStep1 = document.getElementById('recoveryStep1Form');
+  const formStep2 = document.getElementById('recoveryStep2Form');
+  const formStep3 = document.getElementById('recoveryStep3Form');
+  const viewSuccess = document.getElementById('recoverySuccessView');
+
+  const inputRecoveryIdentifier = document.getElementById('recoveryIdentifierInput');
+  const inputRecoveryCode = document.getElementById('recoveryCodeInput');
+  const inputRecoveryNewPass = document.getElementById('recoveryNewPassword');
+  const inputRecoveryConfPass = document.getElementById('recoveryConfirmPassword');
+
+  const errStep1 = document.getElementById('recoveryStep1Error');
+  const errStep2 = document.getElementById('recoveryStep2Error');
+  const errStep3 = document.getElementById('recoveryStep3Error');
+
+  const targetMaskedEmail = document.getElementById('recoveryTargetMaskedEmail');
+  const btnCloseRecovery = document.getElementById('closeRecoveryModalBtn');
+  const btnBackStep1 = document.getElementById('recoveryBackToStep1Btn');
+  const btnResend = document.getElementById('recoveryResendBtn');
+  const btnRecoveryDone = document.getElementById('recoveryDoneBtn');
+
+  let activeRecoveryToken = null;
+  let activeRecoveryIdentifier = '';
+
+  function openPasswordRecoveryModal(prefilledIdentifier = '') {
+    if (!modalRecovery) return;
+    activeRecoveryToken = null;
+    activeRecoveryIdentifier = prefilledIdentifier;
+
+    if (formStep1) { formStep1.reset(); formStep1.style.display = 'block'; }
+    if (formStep2) { formStep2.reset(); formStep2.style.display = 'none'; }
+    if (formStep3) { formStep3.reset(); formStep3.style.display = 'none'; }
+    if (viewSuccess) viewSuccess.style.display = 'none';
+
+    if (errStep1) errStep1.style.display = 'none';
+    if (errStep2) errStep2.style.display = 'none';
+    if (errStep3) errStep3.style.display = 'none';
+
+    if (inputRecoveryIdentifier && prefilledIdentifier) {
+      inputRecoveryIdentifier.value = prefilledIdentifier;
+    }
+
+    modalRecovery.style.display = 'flex';
+    modalRecovery.classList.add('active');
+    setTimeout(() => {
+      if (inputRecoveryIdentifier) inputRecoveryIdentifier.focus();
+    }, 100);
+  }
+
+  function closePasswordRecoveryModal() {
+    if (!modalRecovery) return;
+    modalRecovery.style.display = 'none';
+    modalRecovery.classList.remove('active');
+    activeRecoveryToken = null;
+    activeRecoveryIdentifier = '';
+  }
+
+  if (btnCloseRecovery) btnCloseRecovery.addEventListener('click', closePasswordRecoveryModal);
+  if (btnRecoveryDone) btnRecoveryDone.addEventListener('click', () => {
+    closePasswordRecoveryModal();
+    const adminEmailInput = document.getElementById('adminEmailInput');
+    if (adminEmailInput && activeRecoveryIdentifier) {
+      adminEmailInput.value = activeRecoveryIdentifier;
+      const pass = document.getElementById('adminPasswordInput');
+      if (pass) pass.focus();
+    }
+  });
+
+  const adminForgLink = document.getElementById('adminPublicForgotPasswordLink');
+  if (adminForgLink) {
+    adminForgLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      const adminEmailInput = document.getElementById('adminEmailInput');
+      const candidate = adminEmailInput ? adminEmailInput.value.trim() : '';
+      openPasswordRecoveryModal(candidate);
+    });
+  }
+
+  if (formStep1) {
+    formStep1.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const identifier = inputRecoveryIdentifier ? inputRecoveryIdentifier.value.trim() : '';
+      if (!identifier) return;
+
+      if (errStep1) errStep1.style.display = 'none';
+      const btn = document.getElementById('recoveryStep1SubmitBtn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span>Sending Code...</span>'; }
+
+      try {
+        const res = await window.kolaApi.auth.forgotPassword(identifier);
+        activeRecoveryIdentifier = identifier;
+        activeRecoveryToken = res.token || null;
+
+        if (targetMaskedEmail) {
+          targetMaskedEmail.textContent = res.masked_email || 'your registered email';
+        }
+
+        formStep1.style.display = 'none';
+        if (formStep2) {
+          formStep2.style.display = 'block';
+          if (inputRecoveryCode) {
+            inputRecoveryCode.value = '';
+            inputRecoveryCode.focus();
+          }
+        }
+        showToast(res.message || 'Recovery code sent to your email!', 'success');
+      } catch (err) {
+        if (errStep1) {
+          errStep1.textContent = err.message;
+          errStep1.style.display = 'block';
+        } else {
+          showToast(err.message, 'error');
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Send Recovery Code to Email →</span>'; }
+      }
+    });
+  }
+
+  if (formStep2) {
+    formStep2.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = inputRecoveryCode ? inputRecoveryCode.value.trim() : '';
+      if (!code) return;
+
+      if (errStep2) errStep2.style.display = 'none';
+      const btn = document.getElementById('recoveryStep2SubmitBtn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span>Verifying Code...</span>'; }
+
+      try {
+        const res = await window.kolaApi.auth.verifyResetCode(activeRecoveryIdentifier, code, activeRecoveryToken);
+        if (res.token) activeRecoveryToken = res.token;
+
+        formStep2.style.display = 'none';
+        if (formStep3) {
+          formStep3.style.display = 'block';
+          if (inputRecoveryNewPass) {
+            inputRecoveryNewPass.value = '';
+            inputRecoveryNewPass.focus();
+          }
+        }
+        showToast('Code verified! Enter your new password.', 'success');
+      } catch (err) {
+        if (errStep2) {
+          errStep2.textContent = err.message;
+          errStep2.style.display = 'block';
+        } else {
+          showToast(err.message, 'error');
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Verify Code &amp; Continue →</span>'; }
+      }
+    });
+  }
+
+  if (btnBackStep1) {
+    btnBackStep1.addEventListener('click', () => {
+      if (formStep2) formStep2.style.display = 'none';
+      if (formStep1) {
+        formStep1.style.display = 'block';
+        if (inputRecoveryIdentifier) inputRecoveryIdentifier.focus();
+      }
+    });
+  }
+
+  if (btnResend) {
+    btnResend.addEventListener('click', async () => {
+      if (!activeRecoveryIdentifier) return;
+      btnResend.disabled = true;
+      btnResend.textContent = 'Resending...';
+      try {
+        const res = await window.kolaApi.auth.forgotPassword(activeRecoveryIdentifier);
+        activeRecoveryToken = res.token || activeRecoveryToken;
+        showToast('A fresh recovery code was sent to your email.', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btnResend.disabled = false;
+        btnResend.textContent = 'Resend Code';
+      }
+    });
+  }
+
+  if (formStep3) {
+    formStep3.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newPass = inputRecoveryNewPass ? inputRecoveryNewPass.value : '';
+      const confPass = inputRecoveryConfPass ? inputRecoveryConfPass.value : '';
+
+      if (errStep3) errStep3.style.display = 'none';
+
+      if (newPass !== confPass) {
+        if (errStep3) {
+          errStep3.textContent = 'Passwords do not match. Please re-enter.';
+          errStep3.style.display = 'block';
+        } else {
+          showToast('Passwords do not match', 'error');
+        }
+        return;
+      }
+
+      if (newPass.length < 4) {
+        if (errStep3) {
+          errStep3.textContent = 'Password must be at least 4 characters long.';
+          errStep3.style.display = 'block';
+        } else {
+          showToast('Password too short', 'error');
+        }
+        return;
+      }
+
+      const btn = document.getElementById('recoveryStep3SubmitBtn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span>Updating Password...</span>'; }
+
+      try {
+        const res = await window.kolaApi.auth.resetPassword({
+          token: activeRecoveryToken,
+          code: inputRecoveryCode ? inputRecoveryCode.value.trim() : '',
+          new_password: newPass
+        });
+
+        formStep3.style.display = 'none';
+        if (viewSuccess) viewSuccess.style.display = 'block';
+        showToast(res.message || 'Password successfully updated!', 'success');
+      } catch (err) {
+        if (errStep3) {
+          errStep3.textContent = err.message;
+          errStep3.style.display = 'block';
+        } else {
+          showToast(err.message, 'error');
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Update Password &amp; Finish →</span>'; }
+      }
+    });
   }
 });

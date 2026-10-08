@@ -175,6 +175,23 @@ function initDatabase() {
       details TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      code TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME,
+      ip_address TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
+    CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+    CREATE INDEX IF NOT EXISTS idx_password_resets_code ON password_resets(code);
   `);
 
   // Migrate users table columns if running against existing database

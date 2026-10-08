@@ -18,12 +18,17 @@
       this.couriers = [];
       this.customers = [];
 
+      // Password Recovery State
+      this.activeRecoveryToken = null;
+      this.activeRecoveryIdentifier = '';
+
       this.init();
     }
 
     async init() {
       this.bindEvents();
       this.startClock();
+      this.checkUrlResetToken();
 
       // Check current session
       if (adminApi.auth.isAuthenticated()) {
@@ -187,21 +192,42 @@
         });
       }
 
-      // Toggle Password Visibility
-      document.getElementById('togglePasswordVisibilityBtn')?.addEventListener('click', () => {
-        const passInput = document.getElementById('loginPassword');
-        const icon = document.getElementById('togglePasswordIcon');
-        const text = document.getElementById('togglePasswordText');
-        if (!passInput) return;
-        if (passInput.type === 'password') {
-          passInput.type = 'text';
-          if (icon) icon.textContent = '🙈';
-          if (text) text.textContent = 'Hide';
-        } else {
-          passInput.type = 'password';
-          if (icon) icon.textContent = '👁️';
-          if (text) text.textContent = 'Show';
+      // Universal Password Visibility Toggle Handler
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.password-toggle-btn');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const wrap = btn.closest('.password-input-wrap');
+        const input = wrap ? wrap.querySelector('input') : (btn.dataset.target ? document.getElementById(btn.dataset.target) : document.getElementById('loginPassword'));
+        if (!input) return;
+
+        const isPass = input.type === 'password';
+        input.type = isPass ? 'text' : 'password';
+
+        const showIcon = btn.querySelector('.eye-show');
+        const hideIcon = btn.querySelector('.eye-hide');
+        if (showIcon && hideIcon) {
+          showIcon.style.display = isPass ? 'none' : 'block';
+          hideIcon.style.display = isPass ? 'block' : 'none';
         }
+
+        const label = isPass ? 'Hide password' : 'Show password';
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('title', label);
+
+        // Sync legacy toggle indicators if present
+        const legacyIcon = document.getElementById('togglePasswordIcon');
+        const legacyText = document.getElementById('togglePasswordText');
+        if (legacyIcon) legacyIcon.textContent = isPass ? '🙈' : '👁️';
+        if (legacyText) legacyText.textContent = isPass ? 'Hide' : 'Show';
+
+        try {
+          input.focus();
+          const valLen = input.value.length;
+          input.setSelectionRange(valLen, valLen);
+        } catch (_) {}
       });
 
       // Quick Role Presets (Preserves custom user inputs & synchronizes updated credentials)
@@ -553,6 +579,65 @@
             btn.innerHTML = origText;
           }
         }
+      });
+
+      // -------------------------------------------------------------
+      // Password Recovery Modal Events
+      // -------------------------------------------------------------
+      document.getElementById('adminConsoleForgotPasswordLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const idInput = document.getElementById('loginIdentifier');
+        const prefill = idInput ? idInput.value.trim() : '';
+        this.openRecoveryModal(prefill);
+      });
+
+      document.getElementById('recoveryStep1Form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.handleRecoveryStep1();
+      });
+
+      document.getElementById('recoveryStep2Form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.handleRecoveryStep2();
+      });
+
+      document.getElementById('recoveryBackToStep1Btn')?.addEventListener('click', () => {
+        const step1 = document.getElementById('recoveryStep1Form');
+        const step2 = document.getElementById('recoveryStep2Form');
+        if (step2) step2.style.display = 'none';
+        if (step1) {
+          step1.style.display = 'block';
+          document.getElementById('recoveryIdentifierInput')?.focus();
+        }
+      });
+
+      document.getElementById('recoveryResendBtn')?.addEventListener('click', async () => {
+        if (!this.activeRecoveryIdentifier) return;
+        const btn = document.getElementById('recoveryResendBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Resending...'; }
+        try {
+          const res = await adminApi.auth.forgotPassword(this.activeRecoveryIdentifier);
+          if (res.token) this.activeRecoveryToken = res.token;
+          this.showToast('A fresh recovery code was sent to your email.', 'success');
+        } catch (err) {
+          this.showToast(err.message, 'error');
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = 'Resend Code'; }
+        }
+      });
+
+      document.getElementById('recoveryStep3Form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.handleRecoveryStep3();
+      });
+
+      document.getElementById('recoveryDoneBtn')?.addEventListener('click', () => {
+        this.closeModal('modalPasswordRecovery');
+        if (this.activeRecoveryIdentifier) {
+          const idInput = document.getElementById('loginIdentifier');
+          if (idInput) idInput.value = this.activeRecoveryIdentifier;
+        }
+        document.getElementById('loginPassword')?.focus();
       });
     }
 
@@ -1288,12 +1373,233 @@
     // =================================================================
     openModal(modalId) {
       const modal = document.getElementById(modalId);
-      if (modal) modal.classList.add('active');
+      if (modal) {
+        modal.classList.add('active');
+        this.resetModalPasswordToggles(modal);
+      }
     }
 
     closeModal(modalId) {
       const modal = document.getElementById(modalId);
-      if (modal) modal.classList.remove('active');
+      if (modal) {
+        modal.classList.remove('active');
+        this.resetModalPasswordToggles(modal);
+      }
+    }
+
+    resetModalPasswordToggles(container) {
+      if (!container) return;
+      const wraps = container.querySelectorAll('.password-input-wrap');
+      wraps.forEach(wrap => {
+        const input = wrap.querySelector('input');
+        const btn = wrap.querySelector('.password-toggle-btn');
+        if (input && input.type === 'text') input.type = 'password';
+        if (btn) {
+          const showIcon = btn.querySelector('.eye-show');
+          const hideIcon = btn.querySelector('.eye-hide');
+          if (showIcon) showIcon.style.display = 'block';
+          if (hideIcon) hideIcon.style.display = 'none';
+          btn.setAttribute('aria-label', 'Show password');
+          btn.setAttribute('title', 'Show password');
+        }
+      });
+    }
+
+    openRecoveryModal(prefilledIdentifier = '') {
+      this.activeRecoveryToken = null;
+      this.activeRecoveryIdentifier = prefilledIdentifier;
+
+      const step1 = document.getElementById('recoveryStep1Form');
+      const step2 = document.getElementById('recoveryStep2Form');
+      const step3 = document.getElementById('recoveryStep3Form');
+      const success = document.getElementById('recoverySuccessView');
+
+      if (step1) { step1.reset(); step1.style.display = 'block'; }
+      if (step2) { step2.reset(); step2.style.display = 'none'; }
+      if (step3) { step3.reset(); step3.style.display = 'none'; }
+      if (success) success.style.display = 'none';
+
+      const err1 = document.getElementById('recoveryStep1Error');
+      const err2 = document.getElementById('recoveryStep2Error');
+      const err3 = document.getElementById('recoveryStep3Error');
+      if (err1) err1.style.display = 'none';
+      if (err2) err2.style.display = 'none';
+      if (err3) err3.style.display = 'none';
+
+      const idInput = document.getElementById('recoveryIdentifierInput');
+      if (idInput && prefilledIdentifier) {
+        idInput.value = prefilledIdentifier;
+      }
+
+      this.openModal('modalPasswordRecovery');
+      setTimeout(() => idInput?.focus(), 100);
+    }
+
+    checkUrlResetToken() {
+      const hash = window.location.hash || '';
+      const match = hash.match(/#reset-token=([a-f0-9]+)/i);
+      if (match && match[1]) {
+        this.activeRecoveryToken = match[1];
+        try {
+          window.history.replaceState(null, '', window.location.pathname);
+        } catch (_) {}
+
+        const step1 = document.getElementById('recoveryStep1Form');
+        const step2 = document.getElementById('recoveryStep2Form');
+        const step3 = document.getElementById('recoveryStep3Form');
+        const success = document.getElementById('recoverySuccessView');
+
+        if (step1) step1.style.display = 'none';
+        if (step2) step2.style.display = 'none';
+        if (step3) { step3.reset(); step3.style.display = 'block'; }
+        if (success) success.style.display = 'none';
+
+        this.openModal('modalPasswordRecovery');
+        setTimeout(() => document.getElementById('recoveryNewPassword')?.focus(), 100);
+        this.showToast('Reset token detected. Enter your new administrator password.', 'info');
+      }
+    }
+
+    async handleRecoveryStep1() {
+      const idInput = document.getElementById('recoveryIdentifierInput');
+      const identifier = idInput ? idInput.value.trim() : '';
+      const errBox = document.getElementById('recoveryStep1Error');
+      const submitBtn = document.getElementById('recoveryStep1SubmitBtn');
+
+      if (!identifier) return;
+      if (errBox) errBox.style.display = 'none';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending Code...'; }
+
+      try {
+        const res = await adminApi.auth.forgotPassword(identifier);
+        this.activeRecoveryIdentifier = identifier;
+        this.activeRecoveryToken = res.token || null;
+
+        const masked = document.getElementById('recoveryTargetMaskedEmail');
+        if (masked) masked.textContent = res.masked_email || 'your registered email';
+
+        document.getElementById('recoveryStep1Form').style.display = 'none';
+        const step2 = document.getElementById('recoveryStep2Form');
+        if (step2) {
+          step2.style.display = 'block';
+          const codeInput = document.getElementById('recoveryCodeInput');
+          if (codeInput) { codeInput.value = ''; codeInput.focus(); }
+        }
+        this.showToast(res.message || 'Verification code sent to your registered email!', 'success');
+      } catch (err) {
+        if (errBox) {
+          errBox.textContent = err.message;
+          errBox.style.display = 'block';
+        } else {
+          this.showToast(err.message, 'error');
+        }
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Code to Email →'; }
+      }
+    }
+
+    async handleRecoveryStep2() {
+      const codeInput = document.getElementById('recoveryCodeInput');
+      const code = codeInput ? codeInput.value.trim() : '';
+      const errBox = document.getElementById('recoveryStep2Error');
+      const submitBtn = document.getElementById('recoveryStep2SubmitBtn');
+
+      if (!code) return;
+      if (errBox) errBox.style.display = 'none';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying Code...'; }
+
+      try {
+        const res = await adminApi.auth.verifyResetCode(this.activeRecoveryIdentifier, code, this.activeRecoveryToken);
+        if (res.token) this.activeRecoveryToken = res.token;
+
+        document.getElementById('recoveryStep2Form').style.display = 'none';
+        const step3 = document.getElementById('recoveryStep3Form');
+        if (step3) {
+          step3.style.display = 'block';
+          const newPass = document.getElementById('recoveryNewPassword');
+          if (newPass) { newPass.value = ''; newPass.focus(); }
+        }
+        this.showToast('Verification successful! You can now set a new password.', 'success');
+      } catch (err) {
+        if (errBox) {
+          errBox.textContent = err.message;
+          errBox.style.display = 'block';
+        } else {
+          this.showToast(err.message, 'error');
+        }
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify Code →'; }
+      }
+    }
+
+    async handleRecoveryStep3() {
+      const newPassInput = document.getElementById('recoveryNewPassword');
+      const confPassInput = document.getElementById('recoveryConfirmPassword');
+      const errBox = document.getElementById('recoveryStep3Error');
+      const submitBtn = document.getElementById('recoveryStep3SubmitBtn');
+
+      const newPass = newPassInput ? newPassInput.value : '';
+      const confPass = confPassInput ? confPassInput.value : '';
+
+      if (errBox) errBox.style.display = 'none';
+
+      if (newPass !== confPass) {
+        if (errBox) {
+          errBox.textContent = 'Passwords do not match. Please re-enter.';
+          errBox.style.display = 'block';
+        } else {
+          this.showToast('Passwords do not match', 'error');
+        }
+        return;
+      }
+
+      if (newPass.length < 4) {
+        if (errBox) {
+          errBox.textContent = 'Password must be at least 4 characters long.';
+          errBox.style.display = 'block';
+        } else {
+          this.showToast('Password must be at least 4 characters long.', 'error');
+        }
+        return;
+      }
+
+      const codeInput = document.getElementById('recoveryCodeInput');
+      const code = codeInput ? codeInput.value.trim() : '';
+
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Updating Password...'; }
+
+      try {
+        const res = await adminApi.auth.resetPassword(this.activeRecoveryToken, code, newPass);
+
+        // Update preset storage if matching one of standard admin roles
+        const idLower = (this.activeRecoveryIdentifier || '').toLowerCase();
+        if (idLower.includes('admin@') || idLower === 'super_admin' || idLower === 'admin') {
+          localStorage.setItem('kola_admin_pwd_super_admin', newPass);
+        } else if (idLower.includes('ops@') || idLower === 'operations_admin' || idLower === 'ops') {
+          localStorage.setItem('kola_admin_pwd_operations_admin', newPass);
+        } else if (idLower.includes('finance@') || idLower === 'finance_admin' || idLower === 'finance') {
+          localStorage.setItem('kola_admin_pwd_finance_admin', newPass);
+        }
+        this.updatePresetBadges();
+
+        const passLogin = document.getElementById('loginPassword');
+        if (passLogin) passLogin.value = newPass;
+
+        document.getElementById('recoveryStep3Form').style.display = 'none';
+        const success = document.getElementById('recoverySuccessView');
+        if (success) success.style.display = 'block';
+
+        this.showToast(res.message || 'Password successfully updated!', 'success');
+      } catch (err) {
+        if (errBox) {
+          errBox.textContent = err.message;
+          errBox.style.display = 'block';
+        } else {
+          this.showToast(err.message, 'error');
+        }
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Update Password & Log In →'; }
+      }
     }
 
     openStaffPasswordModal(staffId, name, email, role) {

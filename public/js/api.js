@@ -86,7 +86,28 @@ const api = {
       setStoredUser(null);
     },
     getUser: getStoredUser,
-    getToken: getStoredToken
+    getToken: getStoredToken,
+    async forgotPassword(identifier) {
+      return await request('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ identifier })
+      });
+    },
+    async verifyResetCode(identifier, code, token) {
+      return await request('/auth/verify-reset-code', {
+        method: 'POST',
+        body: JSON.stringify({ identifier, code, token })
+      });
+    },
+    async resetPassword(tokenOrData, code, newPassword) {
+      const payload = typeof tokenOrData === 'object' && tokenOrData !== null
+        ? tokenOrData
+        : { token: tokenOrData, code, new_password: newPassword };
+      return await request('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    }
   },
 
   // Pricing

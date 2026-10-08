@@ -604,6 +604,106 @@ body {
   box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
+/* ===================================================================
+   PASSWORD VISIBILITY TOGGLE COMPONENT
+   =================================================================== */
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrap .form-input {
+  width: 100%;
+  padding-right: 2.75rem !important;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #94a3b8);
+  border-radius: var(--radius-sm, 6px);
+  line-height: 1;
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+  user-select: none;
+  z-index: 3;
+}
+
+.password-toggle-btn:hover {
+  color: var(--text-main, #ffffff);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.password-toggle-btn:active {
+  transform: translateY(-50%) scale(0.94);
+}
+
+.password-toggle-btn:focus-visible {
+  outline: 2px solid var(--primary, #3b82f6);
+  outline-offset: 1px;
+}
+
+.password-toggle-btn .eye-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+}
+
+/* ===================================================================
+   PASSWORD RECOVERY MODAL & CODE INPUT
+   =================================================================== */
+.recovery-code-input {
+  letter-spacing: 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.5rem !important;
+  font-weight: 800;
+  text-align: center;
+  padding: 0.75rem !important;
+}
+
+.recovery-info-box {
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+  border-radius: var(--radius-sm, 8px);
+  padding: 0.85rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.recovery-error-alert {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  border-radius: var(--radius-sm, 8px);
+  padding: 0.75rem 0.95rem;
+  font-size: 0.825rem;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+.recovery-open-trigger {
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.recovery-open-trigger:hover {
+  opacity: 0.8;
+}
+
+
+
 .form-group {
   margin-bottom: 1.15rem;
 }

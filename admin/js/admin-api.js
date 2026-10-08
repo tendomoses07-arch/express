@@ -96,6 +96,27 @@ const adminApi = {
       const user = getAdminUser();
       return !!(token && user && user.role === 'admin');
     },
+    async forgotPassword(identifier) {
+      return await adminRequest('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ identifier })
+      });
+    },
+    async verifyResetCode(identifier, code, token) {
+      return await adminRequest('/auth/verify-reset-code', {
+        method: 'POST',
+        body: JSON.stringify({ identifier, code, token })
+      });
+    },
+    async resetPassword(tokenOrData, code, newPassword) {
+      const payload = typeof tokenOrData === 'object' && tokenOrData !== null
+        ? tokenOrData
+        : { token: tokenOrData, code, new_password: newPassword };
+      return await adminRequest('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    },
     async changeMyPassword(currentPassword, newPassword) {
       return await adminRequest('/admin/change-password', {
         method: 'POST',

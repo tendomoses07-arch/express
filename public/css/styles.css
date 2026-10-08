@@ -918,6 +918,136 @@ button.nav-btn {
   min-height: 68px;
 }
 
+/* ===================================================================
+   PASSWORD VISIBILITY TOGGLE COMPONENT
+   =================================================================== */
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrap .form-input {
+  width: 100%;
+  padding-right: 2.75rem !important;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  border-radius: 6px;
+  line-height: 1;
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+  user-select: none;
+  z-index: 3;
+}
+
+.password-toggle-btn:hover {
+  color: #0f172a;
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.password-toggle-btn:active {
+  transform: translateY(-50%) scale(0.94);
+}
+
+.password-toggle-btn:focus-visible {
+  outline: 2px solid var(--kola-blue, #2563eb);
+  outline-offset: 1px;
+}
+
+.password-toggle-btn .eye-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+}
+
+/* Dark theme & Auth-Gate modal styling */
+[data-theme="dark"] .password-toggle-btn,
+.auth-gate-form .password-toggle-btn {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .password-toggle-btn:hover,
+.auth-gate-form .password-toggle-btn:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .password-toggle-btn:focus-visible,
+.auth-gate-form .password-toggle-btn:focus-visible {
+  outline-color: #38bdf8;
+}
+
+/* ===================================================================
+   PASSWORD RECOVERY MODAL & CODE INPUT
+   =================================================================== */
+.recovery-code-input {
+  letter-spacing: 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.5rem !important;
+  font-weight: 800;
+  text-align: center;
+  padding: 0.75rem !important;
+}
+
+.recovery-info-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+[data-theme="dark"] .recovery-info-box {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+.recovery-error-alert {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  border-radius: 8px;
+  padding: 0.75rem 0.95rem;
+  font-size: 0.825rem;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .recovery-error-alert {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.recovery-open-trigger {
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.recovery-open-trigger:hover {
+  opacity: 0.8;
+}
+
+
+
+
 /* Quick Landmark Chips */
 .quick-chips-wrap {
   margin-top: 0.5rem;
