@@ -12,11 +12,13 @@ const PAYMENT_METHODS = {
 function sanitizeAndValidateUgandaPhone(phone) {
   if (!phone) return { valid: false, message: 'Phone number is required' };
   
-  let cleaned = phone.replace(/\s+/g, '').replace(/-/g, '');
+  let cleaned = String(phone).replace(/\s+/g, '').replace(/[-().]/g, '');
   if (cleaned.startsWith('+256')) {
     cleaned = '0' + cleaned.slice(4);
   } else if (cleaned.startsWith('256')) {
     cleaned = '0' + cleaned.slice(3);
+  } else if (cleaned.length === 9 && cleaned.startsWith('7')) {
+    cleaned = '0' + cleaned;
   }
 
   // Must be 10 digits starting with 07

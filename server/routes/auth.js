@@ -179,6 +179,21 @@ router.post('/register', (req, res) => {
       `).run(user.id, validatedPhone, user.id);
     }
 
+    // Sync newly registered user to PostgreSQL / Supabase if pool is configured
+    try {
+      const { getPgPool } = require('../supabase');
+      const pool = getPgPool();
+      if (pool) {
+        pool.query(`
+          INSERT INTO users (full_name, phone, email, password_hash, role)
+          VALUES ($1, $2, $3, $4, 'customer')
+          ON CONFLICT DO NOTHING
+        `, [user.full_name, user.phone, user.email, password_hash]).catch(pgErr => {
+          console.warn('Postgres user sync background notice:', pgErr.message);
+        });
+      }
+    } catch (_) {}
+
     const token = jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ user, token });
   } catch (err) {
@@ -197,8 +212,10 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ error: 'Phone/Email and password are required' });
     }
 
+    const strippedTarget = loginTarget.replace(/[\s\-.()]/g, '');
+
     // Try finding by phone or email
-    let user = db.prepare('SELECT * FROM users WHERE phone = ? OR LOWER(email) = LOWER(?)').get(loginTarget, loginTarget);
+    let user = db.prepare('SELECT * FROM users WHERE phone = ? OR phone = ? OR LOWER(email) = LOWER(?)').get(loginTarget, strippedTarget, loginTarget);
 
     // Also support formatted Uganda phone if applicable
     if (!user) {

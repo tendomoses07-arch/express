@@ -1426,68 +1426,50 @@
   </div> <!-- End #siteContentWrap -->
 
   <!-- ===================================================================
-       PASSWORD RECOVERY MODAL (EXPLICIT 3-STEP GUIDED FLOW)
+       PASSWORD RECOVERY & ASSISTANCE MODAL (CLEAN & SUITABLE FLOW)
        =================================================================== -->
-  <div class="modal-overlay" id="modalPasswordRecovery">
+  <div class="modal-overlay" id="modalPasswordRecovery" style="display: none;">
     <div class="modal-content" style="max-width: 440px; padding: 2rem;">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
         <h3 style="font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; margin: 0; font-weight: 800;">
-          <span>🔑</span> Forgot your password?
+          <span>🔑</span> Password Recovery
         </h3>
         <button type="button" class="modal-close-btn" id="closeRecoveryModalBtn" aria-label="Close recovery dialog">&times;</button>
       </div>
 
-      <!-- Step 1: Request Recovery Code -->
-      <form id="recoveryStep1Form">
+      <!-- Phase 1: Request Recovery Code -->
+      <form id="recoveryRequestForm">
         <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
-          Enter the email address associated with your Kola Express account. We will send a secure 6-digit verification code to your registered email.
+          Enter your registered email address to receive a secure 6-digit verification code.
         </p>
 
         <div class="form-group">
-          <label for="recoveryIdentifierInput">Email address <span class="req">*</span></label>
-          <input type="email" id="recoveryIdentifierInput" class="form-input" placeholder="e.g. yourname@example.com" required autocomplete="email">
+          <label for="recoveryEmailInput">Email address <span class="req">*</span></label>
+          <input type="email" id="recoveryEmailInput" class="form-input" placeholder="e.g. sarah@example.com" required autocomplete="email">
         </div>
 
-        <div id="recoveryStep1Error" class="recovery-error-alert" style="display: none;"></div>
+        <div id="recoveryRequestError" class="recovery-error-alert" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.825rem; margin-bottom: 1rem;"></div>
 
         <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
-          <button type="button" class="btn-secondary" id="recoveryStep1CancelBtn" style="padding: 0.75rem 1rem; flex: 1;">
+          <button type="button" class="btn-secondary" id="recoveryCancelBtn" style="padding: 0.75rem 1rem; flex: 1;">
             Back to Login
           </button>
-          <button type="submit" class="btn-primary" id="recoveryStep1SubmitBtn" style="padding: 0.75rem; flex: 1.5;">
+          <button type="submit" class="btn-primary" id="recoveryRequestSubmitBtn" style="padding: 0.75rem; flex: 1.5;">
             <span>Send Recovery Code</span>
           </button>
         </div>
       </form>
 
-      <!-- Step 2: Enter 6-digit Verification Code -->
-      <form id="recoveryStep2Form" style="display: none;">
-        <div class="recovery-info-box">
-          ✉️ <strong>Recovery verification code sent to your email.</strong> Please check your registered inbox (<span id="recoveryTargetMaskedEmail" style="font-weight: 700;">your email</span>). Code valid for 15 minutes.
+      <!-- Phase 2: Enter 6-digit Code & New Password -->
+      <form id="recoveryResetForm" style="display: none;">
+        <div style="background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.75rem 0.9rem; font-size: 0.825rem; color: #93c5fd; margin-bottom: 1.25rem; line-height: 1.5;">
+          ✉️ Verification code sent to <strong id="recoveryTargetEmail" style="color: #fff;">your email</strong>. Valid for 15 minutes.
         </div>
 
         <div class="form-group">
           <label for="recoveryCodeInput">6-Digit Verification Code <span class="req">*</span></label>
-          <input type="text" id="recoveryCodeInput" class="form-input recovery-code-input" placeholder="123456" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code">
+          <input type="text" id="recoveryCodeInput" class="form-input recovery-code-input" placeholder="123456" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code" style="letter-spacing: 4px; font-size: 1.1rem; text-align: center; font-weight: 700;">
         </div>
-
-        <div id="recoveryStep2Error" class="recovery-error-alert" style="display: none;"></div>
-
-        <button type="submit" class="btn-primary btn-block" id="recoveryStep2SubmitBtn" style="padding: 0.75rem;">
-          <span>Verify Code &amp; Continue →</span>
-        </button>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.15rem; font-size: 0.8rem;">
-          <button type="button" class="auth-switch-link" id="recoveryBackToStep1Btn" style="background: none; border: none; cursor: pointer; color: var(--kola-blue-dark); text-decoration: underline; padding: 0;">← Back to Login</button>
-          <button type="button" class="auth-switch-link" id="recoveryResendBtn" style="background: none; border: none; cursor: pointer; color: var(--kola-blue-dark); text-decoration: underline; padding: 0;">Resend Code</button>
-        </div>
-      </form>
-
-      <!-- Step 3: Enter New Password -->
-      <form id="recoveryStep3Form" style="display: none;">
-        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
-          Your recovery code has been verified. Create your new password below.
-        </p>
 
         <div class="form-group">
           <label for="recoveryNewPassword">New Password <span class="req">*</span></label>
@@ -1500,34 +1482,34 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="recoveryConfirmPassword">Confirm New Password <span class="req">*</span></label>
-          <div class="password-input-wrap">
-            <input type="password" id="recoveryConfirmPassword" class="form-input" placeholder="Re-enter new password" minlength="4" required autocomplete="new-password">
-            <button type="button" class="password-toggle-btn" aria-label="Show password" title="Show password">
-              <svg class="eye-icon eye-show" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              <svg class="eye-icon eye-hide" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-            </button>
-          </div>
-        </div>
+        <div id="recoveryResetError" class="recovery-error-alert" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.825rem; margin-bottom: 1rem;"></div>
 
-        <div id="recoveryStep3Error" class="recovery-error-alert" style="display: none;"></div>
-
-        <button type="submit" class="btn-primary btn-block" id="recoveryStep3SubmitBtn" style="padding: 0.75rem;">
-          <span>Update Password &amp; Finish →</span>
+        <button type="submit" class="btn-primary btn-block" id="recoveryResetSubmitBtn" style="padding: 0.75rem;">
+          <span>Set New Password &amp; Continue →</span>
         </button>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: 0.8rem;">
+          <button type="button" class="auth-switch-link" id="recoveryBackToRequestBtn" style="background: none; border: none; cursor: pointer; color: #38bdf8; text-decoration: underline; padding: 0;">← Change Email</button>
+          <button type="button" class="auth-switch-link" id="recoveryResendBtn" style="background: none; border: none; cursor: pointer; color: #38bdf8; text-decoration: underline; padding: 0;">Resend Code</button>
+        </div>
       </form>
 
-      <!-- Success View -->
+      <!-- Phase 3: Success View -->
       <div id="recoverySuccessView" style="display: none; text-align: center; padding: 1rem 0;">
         <div style="font-size: 2.75rem; margin-bottom: 0.75rem;">🎉</div>
         <h4 style="font-size: 1.15rem; margin-bottom: 0.5rem; font-weight: 800;">Password Reset Complete!</h4>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.5;">
-          Password updated successfully. You can now log in with your new password.
+          Your password has been updated. You can now log in with your new password.
         </p>
         <button type="button" class="btn-primary btn-block" id="recoveryDoneBtn" style="padding: 0.75rem;">
           Proceed to Log In →
         </button>
+      </div>
+
+      <!-- Live Dispatch Hotline Support Notice -->
+      <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 0.775rem; color: var(--text-muted); text-align: center; line-height: 1.5;">
+        <span>Need immediate help? Call 24/7 Dispatch Support:</span><br>
+        <strong style="color: #38bdf8;">📞 0772 100 200 (MTN) / 0701 200 300 (Airtel)</strong>
       </div>
 
     </div>

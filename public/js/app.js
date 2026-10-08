@@ -285,9 +285,64 @@ document.addEventListener('DOMContentLoaded', () => {
     if (taskContainer) taskContainer.innerHTML = '';
     const activeSec = document.getElementById('activeDeliverySection');
     if (activeSec) activeSec.style.display = 'none';
+
+    // Reset Gate registration form
+    const gateRegForm = document.getElementById('gateRegisterForm');
+    if (gateRegForm) gateRegForm.reset();
+    const gateRegErr = document.getElementById('gateRegError');
+    if (gateRegErr) {
+      gateRegErr.textContent = '';
+      gateRegErr.style.display = 'none';
+    }
+    const gateRegBtn = document.getElementById('gateRegSubmitBtn');
+    if (gateRegBtn) {
+      gateRegBtn.disabled = false;
+      gateRegBtn.innerHTML = '<span>Register &amp; Unlock Site Interface →</span>';
+    }
+
+    // Reset Gate login form errors and password (keep identifier for convenience)
+    const gateLoginErr = document.getElementById('gateLoginError');
+    if (gateLoginErr) {
+      gateLoginErr.textContent = '';
+      gateLoginErr.style.display = 'none';
+    }
+    const gateLoginPass = document.getElementById('gateLoginPassword');
+    if (gateLoginPass) gateLoginPass.value = '';
+    const gateLoginBtn = document.getElementById('gateLoginSubmitBtn');
+    if (gateLoginBtn) {
+      gateLoginBtn.disabled = false;
+      gateLoginBtn.innerHTML = '<span>Log In &amp; Access Kola Express →</span>';
+    }
+
+    // Close any recovery modal if open
+    if (typeof closePasswordRecoveryModal === 'function') {
+      closePasswordRecoveryModal();
+    }
+
+    // Reset password visibility toggles
+    if (typeof resetPasswordToggles === 'function') {
+      resetPasswordToggles(document);
+    }
+
+    // Always enforce LOGIN tab on gate
+    if (typeof showGateLoginTab === 'function') {
+      showGateLoginTab();
+    }
+
     showToast('Logged out of Kola Express', 'info');
     checkAuthAndEnforceGate();
     closeMobileNav();
+
+    // Focus on login password or identifier
+    setTimeout(() => {
+      const idInput = document.getElementById('gateLoginIdentifier');
+      const passInput = document.getElementById('gateLoginPassword');
+      if (idInput && idInput.value.trim()) {
+        if (passInput) passInput.focus();
+      } else if (idInput) {
+        idInput.focus();
+      }
+    }, 100);
   }
 
   // Global helper on window - defined early to guarantee availability across all components
@@ -2066,6 +2121,10 @@ document.addEventListener('DOMContentLoaded', () => {
       resetPasswordToggles(gateRegisterForm);
     }
     if (gateLoginForm) gateLoginForm.style.display = 'none';
+    const regErr = document.getElementById('gateRegError');
+    if (regErr) { regErr.textContent = ''; regErr.style.display = 'none'; }
+    const regBtn = document.getElementById('gateRegSubmitBtn');
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = '<span>Register &amp; Unlock Site Interface →</span>'; }
   }
 
   function showGateLoginTab() {
@@ -2076,6 +2135,10 @@ document.addEventListener('DOMContentLoaded', () => {
       resetPasswordToggles(gateLoginForm);
     }
     if (gateRegisterForm) gateRegisterForm.style.display = 'none';
+    const logErr = document.getElementById('gateLoginError');
+    if (logErr) { logErr.textContent = ''; logErr.style.display = 'none'; }
+    const logBtn = document.getElementById('gateLoginSubmitBtn');
+    if (logBtn) { logBtn.disabled = false; logBtn.innerHTML = '<span>Log In &amp; Access Kola Express →</span>'; }
   }
 
   if (tabGateRegister) tabGateRegister.addEventListener('click', showGateRegisterTab);
@@ -2096,6 +2159,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const errorDiv = document.getElementById('gateRegError');
       const submitBtn = document.getElementById('gateRegSubmitBtn');
 
+      if (!fullName || !identifier || !password) {
+        if (errorDiv) {
+          errorDiv.textContent = 'Please fill in all required fields to create your account.';
+          errorDiv.style.display = 'block';
+        }
+        return;
+      }
+
       if (errorDiv) errorDiv.style.display = 'none';
       if (submitBtn) {
         submitBtn.disabled = true;
@@ -2109,6 +2180,16 @@ document.addEventListener('DOMContentLoaded', () => {
           password
         });
         showToast(`Welcome to Kola Express, ${res.user.full_name}!`, 'success');
+
+        // Reset registration fields so they don't linger on logout
+        gateRegisterForm.reset();
+
+        // Prefill login identifier with the new credentials so user can easily log back in later
+        const loginIdInput = document.getElementById('gateLoginIdentifier');
+        if (loginIdInput) {
+          loginIdInput.value = identifier;
+        }
+
         checkAuthAndEnforceGate();
         initRealtimeManager();
         loadActiveDelivery();
@@ -2137,6 +2218,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const password = document.getElementById('gateLoginPassword').value;
       const errorDiv = document.getElementById('gateLoginError');
       const submitBtn = document.getElementById('gateLoginSubmitBtn');
+
+      if (!identifier || !password) {
+        if (errorDiv) {
+          errorDiv.textContent = 'Please enter your phone number or email and password.';
+          errorDiv.style.display = 'block';
+        }
+        return;
+      }
 
       if (errorDiv) errorDiv.style.display = 'none';
       if (submitBtn) {
@@ -2888,55 +2977,56 @@ document.addEventListener('DOMContentLoaded', () => {
   window.showToast = showToast;
 
   // ===================================================================
-  // 11. PASSWORD RECOVERY MANAGER (EMAIL VERIFICATION)
+  // 11. STREAMLINED PASSWORD RECOVERY & ASSISTANCE
   // ===================================================================
   const modalRecovery = document.getElementById('modalPasswordRecovery');
-  const formStep1 = document.getElementById('recoveryStep1Form');
-  const formStep2 = document.getElementById('recoveryStep2Form');
-  const formStep3 = document.getElementById('recoveryStep3Form');
+  const formRequest = document.getElementById('recoveryRequestForm');
+  const formReset = document.getElementById('recoveryResetForm');
   const viewSuccess = document.getElementById('recoverySuccessView');
 
-  const inputRecoveryIdentifier = document.getElementById('recoveryIdentifierInput');
-  const inputRecoveryCode = document.getElementById('recoveryCodeInput');
-  const inputRecoveryNewPass = document.getElementById('recoveryNewPassword');
-  const inputRecoveryConfPass = document.getElementById('recoveryConfirmPassword');
+  const inputEmail = document.getElementById('recoveryEmailInput');
+  const inputCode = document.getElementById('recoveryCodeInput');
+  const inputNewPass = document.getElementById('recoveryNewPassword');
 
-  const errStep1 = document.getElementById('recoveryStep1Error');
-  const errStep2 = document.getElementById('recoveryStep2Error');
-  const errStep3 = document.getElementById('recoveryStep3Error');
+  const errRequest = document.getElementById('recoveryRequestError');
+  const errReset = document.getElementById('recoveryResetError');
 
-  const targetMaskedEmail = document.getElementById('recoveryTargetMaskedEmail');
+  const targetEmailSpan = document.getElementById('recoveryTargetEmail');
   const btnCloseRecovery = document.getElementById('closeRecoveryModalBtn');
-  const btnBackStep1 = document.getElementById('recoveryBackToStep1Btn');
+  const btnCancelRequest = document.getElementById('recoveryCancelBtn');
+  const btnBackToRequest = document.getElementById('recoveryBackToRequestBtn');
   const btnResend = document.getElementById('recoveryResendBtn');
-  const btnRecoveryDone = document.getElementById('recoveryDoneBtn');
+  const btnDone = document.getElementById('recoveryDoneBtn');
 
-  let activeRecoveryToken = null;
-  let activeRecoveryIdentifier = '';
+  let activeRecoveryEmail = '';
 
-  function openPasswordRecoveryModal(prefilledIdentifier = '') {
+  function openPasswordRecoveryModal(prefilled = '') {
     if (!modalRecovery) return;
-    activeRecoveryToken = null;
-    activeRecoveryIdentifier = prefilledIdentifier;
+    activeRecoveryEmail = prefilled && prefilled.includes('@') ? prefilled.trim() : '';
 
-    // Reset forms & views
-    if (formStep1) { formStep1.reset(); formStep1.style.display = 'block'; }
-    if (formStep2) { formStep2.reset(); formStep2.style.display = 'none'; }
-    if (formStep3) { formStep3.reset(); formStep3.style.display = 'none'; }
-    if (viewSuccess) viewSuccess.style.display = 'none';
+    if (formRequest) {
+      formRequest.reset();
+      formRequest.style.display = 'block';
+    }
+    if (formReset) {
+      formReset.reset();
+      formReset.style.display = 'none';
+    }
+    if (viewSuccess) {
+      viewSuccess.style.display = 'none';
+    }
 
-    if (errStep1) errStep1.style.display = 'none';
-    if (errStep2) errStep2.style.display = 'none';
-    if (errStep3) errStep3.style.display = 'none';
+    if (errRequest) errRequest.style.display = 'none';
+    if (errReset) errReset.style.display = 'none';
 
-    if (inputRecoveryIdentifier) {
-      inputRecoveryIdentifier.value = (prefilledIdentifier && prefilledIdentifier.includes('@')) ? prefilledIdentifier : '';
+    if (inputEmail && activeRecoveryEmail) {
+      inputEmail.value = activeRecoveryEmail;
     }
 
     modalRecovery.style.display = 'flex';
     modalRecovery.classList.add('active');
     setTimeout(() => {
-      if (inputRecoveryIdentifier) inputRecoveryIdentifier.focus();
+      if (inputEmail) inputEmail.focus();
     }, 60);
   }
 
@@ -2944,23 +3034,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modalRecovery) return;
     modalRecovery.style.display = 'none';
     modalRecovery.classList.remove('active');
-    activeRecoveryToken = null;
-    activeRecoveryIdentifier = '';
   }
 
   window.openPasswordRecoveryModal = openPasswordRecoveryModal;
   window.closePasswordRecoveryModal = closePasswordRecoveryModal;
 
   if (btnCloseRecovery) btnCloseRecovery.addEventListener('click', closePasswordRecoveryModal);
-
-  const btnCancelStep1 = document.getElementById('recoveryStep1CancelBtn');
-  if (btnCancelStep1) {
-    btnCancelStep1.addEventListener('click', () => {
-      closePasswordRecoveryModal();
-      const gateLoginInput = document.getElementById('gateLoginIdentifier');
-      if (gateLoginInput) gateLoginInput.focus();
-    });
-  }
+  if (btnCancelRequest) btnCancelRequest.addEventListener('click', closePasswordRecoveryModal);
 
   if (modalRecovery) {
     modalRecovery.addEventListener('click', (e) => {
@@ -2970,152 +3050,111 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (btnRecoveryDone) btnRecoveryDone.addEventListener('click', () => {
-    const savedId = activeRecoveryIdentifier;
-    closePasswordRecoveryModal();
-    const gateLoginId = document.getElementById('gateLoginIdentifier');
-    if (gateLoginId && savedId) {
-      gateLoginId.value = savedId;
+  if (btnBackToRequest) {
+    btnBackToRequest.addEventListener('click', () => {
+      if (formReset) formReset.style.display = 'none';
+      if (formRequest) {
+        formRequest.style.display = 'block';
+        if (inputEmail) inputEmail.focus();
+      }
+    });
+  }
+
+  if (btnDone) {
+    btnDone.addEventListener('click', () => {
+      closePasswordRecoveryModal();
+      showGateLoginTab();
+      const loginIdInput = document.getElementById('gateLoginIdentifier');
+      if (loginIdInput && activeRecoveryEmail) {
+        loginIdInput.value = activeRecoveryEmail;
+      }
       const pass = document.getElementById('gateLoginPassword');
       if (pass) pass.focus();
-    }
-    showToast('Please sign in with your updated password.', 'info');
-  });
+      showToast('Please sign in with your updated password.', 'info');
+    });
+  }
 
-  // Open triggers: Handle class and individual element IDs directly
-  const handleOpenRecoveryTrigger = (e) => {
+  // Open triggers
+  const handleOpenRecovery = (e) => {
     e.preventDefault();
     e.stopPropagation();
     let candidate = '';
-    const gateLoginInput = document.getElementById('gateLoginIdentifier');
-    const custLoginInput = document.getElementById('customerLoginPhone');
-
-    if (gateLoginInput && gateLoginInput.value.trim() && gateLoginInput.value.includes('@')) {
-      candidate = gateLoginInput.value.trim();
-    } else if (custLoginInput && custLoginInput.value.trim() && custLoginInput.value.includes('@')) {
-      candidate = custLoginInput.value.trim();
+    const gateId = document.getElementById('gateLoginIdentifier');
+    if (gateId && gateId.value.trim().includes('@')) {
+      candidate = gateId.value.trim();
     }
-
     openPasswordRecoveryModal(candidate);
   };
 
   document.querySelectorAll('.recovery-open-trigger').forEach(trigger => {
-    trigger.addEventListener('click', handleOpenRecoveryTrigger);
+    trigger.addEventListener('click', handleOpenRecovery);
   });
+  document.getElementById('gateForgotPasswordLink')?.addEventListener('click', handleOpenRecovery);
+  document.getElementById('customerForgotPasswordLink')?.addEventListener('click', handleOpenRecovery);
+  document.getElementById('courierForgotPasswordLink')?.addEventListener('click', handleOpenRecovery);
 
-  document.getElementById('gateForgotPasswordLink')?.addEventListener('click', handleOpenRecoveryTrigger);
-  document.getElementById('customerForgotPasswordLink')?.addEventListener('click', handleOpenRecoveryTrigger);
-  document.getElementById('courierForgotPasswordLink')?.addEventListener('click', handleOpenRecoveryTrigger);
-
-  // Step 1: Send recovery code
-  if (formStep1) {
-    formStep1.addEventListener('submit', async (e) => {
+  // Phase 1: Request Code
+  if (formRequest) {
+    formRequest.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const identifier = inputRecoveryIdentifier ? inputRecoveryIdentifier.value.trim() : '';
-      if (!identifier) return;
-
-      if (!identifier.includes('@') || !identifier.includes('.')) {
-        if (errStep1) {
-          errStep1.textContent = 'Please enter a valid email address.';
-          errStep1.style.display = 'block';
+      const email = inputEmail ? inputEmail.value.trim() : '';
+      if (!email || !email.includes('@')) {
+        if (errRequest) {
+          errRequest.textContent = 'Please enter a valid email address.';
+          errRequest.style.display = 'block';
         } else {
           showToast('Please enter a valid email address.', 'warning');
         }
         return;
       }
 
-      if (errStep1) errStep1.style.display = 'none';
-      const btn = document.getElementById('recoveryStep1SubmitBtn');
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span>Sending Code...</span>'; }
+      if (errRequest) errRequest.style.display = 'none';
+      const submitBtn = document.getElementById('recoveryRequestSubmitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Sending Code...</span>';
+      }
 
       try {
-        const res = await window.kolaApi.auth.forgotPassword(identifier);
-        activeRecoveryIdentifier = identifier;
-        activeRecoveryToken = res.token || null;
-
-        if (targetMaskedEmail) {
-          targetMaskedEmail.textContent = res.masked_email || identifier;
+        const res = await window.kolaApi.auth.forgotPassword(email);
+        activeRecoveryEmail = email;
+        if (targetEmailSpan) {
+          targetEmailSpan.textContent = res.masked_email || email;
         }
 
-        formStep1.style.display = 'none';
-        if (formStep2) {
-          formStep2.style.display = 'block';
-          if (inputRecoveryCode) {
-            inputRecoveryCode.value = '';
-            inputRecoveryCode.focus();
+        formRequest.style.display = 'none';
+        if (formReset) {
+          formReset.style.display = 'block';
+          if (inputCode) {
+            inputCode.value = '';
+            inputCode.focus();
           }
         }
-        // ONLY show the recovery confirmation message after the user explicitly requested it and request succeeded:
         showToast('Recovery verification code sent to your email.', 'success');
       } catch (err) {
-        if (errStep1) {
-          errStep1.textContent = err.message;
-          errStep1.style.display = 'block';
+        if (errRequest) {
+          errRequest.textContent = err.message;
+          errRequest.style.display = 'block';
         } else {
           showToast(err.message, 'error');
         }
       } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Send Recovery Code</span>'; }
-      }
-    });
-  }
-
-  // Step 2: Verify code
-  if (formStep2) {
-    formStep2.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const code = inputRecoveryCode ? inputRecoveryCode.value.trim() : '';
-      if (!code) return;
-
-      if (errStep2) errStep2.style.display = 'none';
-      const btn = document.getElementById('recoveryStep2SubmitBtn');
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span>Verifying Code...</span>'; }
-
-      try {
-        const res = await window.kolaApi.auth.verifyResetCode(activeRecoveryIdentifier, code, activeRecoveryToken);
-        if (res.token) activeRecoveryToken = res.token;
-
-        formStep2.style.display = 'none';
-        if (formStep3) {
-          formStep3.style.display = 'block';
-          if (inputRecoveryNewPass) {
-            inputRecoveryNewPass.value = '';
-            inputRecoveryNewPass.focus();
-          }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Send Recovery Code</span>';
         }
-        showToast('Code verified! Enter your new password.', 'success');
-      } catch (err) {
-        if (errStep2) {
-          errStep2.textContent = err.message;
-          errStep2.style.display = 'block';
-        } else {
-          showToast(err.message, 'error');
-        }
-      } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Verify Code &amp; Continue →</span>'; }
       }
     });
   }
 
-  // Step 2 Back / Resend
-  if (btnBackStep1) {
-    btnBackStep1.addEventListener('click', () => {
-      if (formStep2) formStep2.style.display = 'none';
-      if (formStep1) {
-        formStep1.style.display = 'block';
-        if (inputRecoveryIdentifier) inputRecoveryIdentifier.focus();
-      }
-    });
-  }
-
+  // Resend button
   if (btnResend) {
     btnResend.addEventListener('click', async () => {
-      if (!activeRecoveryIdentifier) return;
+      if (!activeRecoveryEmail) return;
       btnResend.disabled = true;
       btnResend.textContent = 'Resending...';
       try {
-        const res = await window.kolaApi.auth.forgotPassword(activeRecoveryIdentifier);
-        activeRecoveryToken = res.token || activeRecoveryToken;
+        await window.kolaApi.auth.forgotPassword(activeRecoveryEmail);
         showToast('A fresh recovery code was sent to your email.', 'success');
       } catch (err) {
         showToast(err.message, 'error');
@@ -3126,84 +3165,60 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Step 3: Set new password
-  if (formStep3) {
-    formStep3.addEventListener('submit', async (e) => {
+  // Phase 2: Reset Password with Code
+  if (formReset) {
+    formReset.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const newPass = inputRecoveryNewPass ? inputRecoveryNewPass.value : '';
-      const confPass = inputRecoveryConfPass ? inputRecoveryConfPass.value : '';
+      const code = inputCode ? inputCode.value.trim() : '';
+      const newPass = inputNewPass ? inputNewPass.value : '';
 
-      if (errStep3) errStep3.style.display = 'none';
+      if (errReset) errReset.style.display = 'none';
 
-      if (newPass !== confPass) {
-        if (errStep3) {
-          errStep3.textContent = 'Passwords do not match. Please re-enter.';
-          errStep3.style.display = 'block';
-        } else {
-          showToast('Passwords do not match', 'error');
+      if (!code || code.length < 4) {
+        if (errReset) {
+          errReset.textContent = 'Please enter the verification code sent to your email.';
+          errReset.style.display = 'block';
         }
         return;
       }
 
-      if (newPass.length < 4) {
-        if (errStep3) {
-          errStep3.textContent = 'Password must be at least 4 characters long.';
-          errStep3.style.display = 'block';
-        } else {
-          showToast('Password too short', 'error');
+      if (!newPass || newPass.length < 4) {
+        if (errReset) {
+          errReset.textContent = 'New password must be at least 4 characters long.';
+          errReset.style.display = 'block';
         }
         return;
       }
 
-      const btn = document.getElementById('recoveryStep3SubmitBtn');
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span>Updating Password...</span>'; }
+      const submitBtn = document.getElementById('recoveryResetSubmitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Updating Password...</span>';
+      }
 
       try {
         const res = await window.kolaApi.auth.resetPassword({
-          token: activeRecoveryToken,
-          code: inputRecoveryCode ? inputRecoveryCode.value.trim() : '',
+          code,
           new_password: newPass
         });
 
-        formStep3.style.display = 'none';
+        formReset.style.display = 'none';
         if (viewSuccess) viewSuccess.style.display = 'block';
         showToast(res.message || 'Password successfully updated!', 'success');
       } catch (err) {
-        if (errStep3) {
-          errStep3.textContent = err.message;
-          errStep3.style.display = 'block';
+        if (errReset) {
+          errReset.textContent = err.message;
+          errReset.style.display = 'block';
         } else {
           showToast(err.message, 'error');
         }
       } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Update Password &amp; Finish →</span>'; }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Set New Password &amp; Continue →</span>';
+        }
       }
     });
   }
-
-  // Check direct URL hash reset token (e.g. http://localhost:3000/#reset-token=...)
-  function checkUrlResetToken() {
-    const hash = window.location.hash || '';
-    if (hash.includes('reset-token=')) {
-      const match = hash.match(/reset-token=([a-f0-9]+)/i);
-      if (match && match[1]) {
-        activeRecoveryToken = match[1];
-        if (modalRecovery) {
-          if (formStep1) formStep1.style.display = 'none';
-          if (formStep2) formStep2.style.display = 'none';
-          if (formStep3) {
-            formStep3.style.display = 'block';
-            if (inputRecoveryNewPass) inputRecoveryNewPass.focus();
-          }
-          modalRecovery.style.display = 'flex';
-          modalRecovery.classList.add('active');
-          showToast('Verified recovery link! Please enter your new password.', 'info');
-        }
-      }
-    }
-  }
-
-  checkUrlResetToken();
-  window.addEventListener('hashchange', checkUrlResetToken);
 
 });
