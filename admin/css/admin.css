@@ -780,11 +780,15 @@ body {
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(6px);
-  z-index: 1000;
+  z-index: 100005;
   display: none;
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+}
+
+#modalPasswordRecovery {
+  z-index: 100010 !important;
 }
 
 .admin-modal-overlay.active {

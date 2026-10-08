@@ -99,7 +99,7 @@ const adminApi = {
     async forgotPassword(identifier) {
       return await adminRequest('/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ identifier })
+        body: JSON.stringify({ identifier, email: identifier })
       });
     },
     async verifyResetCode(identifier, code, token) {

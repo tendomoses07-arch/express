@@ -1397,10 +1397,10 @@ input:checked + .slider:before {
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 1000;
+  z-index: 100005;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1408,6 +1408,10 @@ input:checked + .slider:before {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
+}
+
+#modalPasswordRecovery {
+  z-index: 100010 !important;
 }
 
 .modal-overlay.active {

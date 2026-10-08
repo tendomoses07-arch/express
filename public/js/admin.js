@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       authCard.style.display = 'none';
       dashboardContent.style.display = 'block';
+      if (typeof closePasswordRecoveryModal === 'function') closePasswordRecoveryModal();
       if (nameDisplay) nameDisplay.textContent = user.full_name;
       if (headerLogoutBtn) headerLogoutBtn.style.display = 'inline-block';
       loadDashboard();
@@ -59,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (typeof closePasswordRecoveryModal === 'function') closePasswordRecoveryModal();
       const identifier = document.getElementById('adminEmailInput').value.trim();
       const password = document.getElementById('adminPasswordInput').value;
 
@@ -693,14 +695,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnCloseRecovery) btnCloseRecovery.addEventListener('click', closePasswordRecoveryModal);
+
+  const btnCancelStep1 = document.getElementById('recoveryStep1CancelBtn');
+  if (btnCancelStep1) {
+    btnCancelStep1.addEventListener('click', () => {
+      closePasswordRecoveryModal();
+      const adminEmailInput = document.getElementById('adminEmailInput');
+      if (adminEmailInput) adminEmailInput.focus();
+    });
+  }
+
+  if (modalRecovery) {
+    modalRecovery.addEventListener('click', (e) => {
+      if (e.target === modalRecovery) {
+        closePasswordRecoveryModal();
+      }
+    });
+  }
+
   if (btnRecoveryDone) btnRecoveryDone.addEventListener('click', () => {
+    const savedId = activeRecoveryIdentifier;
     closePasswordRecoveryModal();
     const adminEmailInput = document.getElementById('adminEmailInput');
-    if (adminEmailInput && activeRecoveryIdentifier) {
-      adminEmailInput.value = activeRecoveryIdentifier;
+    if (adminEmailInput && savedId) {
+      adminEmailInput.value = savedId;
       const pass = document.getElementById('adminPasswordInput');
       if (pass) pass.focus();
     }
+    showToast('Please sign in with your updated password.', 'info');
   });
 
   const adminForgLink = document.getElementById('adminPublicForgotPasswordLink');
@@ -719,6 +741,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const identifier = inputRecoveryIdentifier ? inputRecoveryIdentifier.value.trim() : '';
       if (!identifier) return;
 
+      if (!identifier.includes('@') || !identifier.includes('.')) {
+        if (errStep1) {
+          errStep1.textContent = 'Please enter a valid email address.';
+          errStep1.style.display = 'block';
+        } else {
+          showToast('Please enter a valid email address.', 'warning');
+        }
+        return;
+      }
+
       if (errStep1) errStep1.style.display = 'none';
       const btn = document.getElementById('recoveryStep1SubmitBtn');
       if (btn) { btn.disabled = true; btn.innerHTML = '<span>Sending Code...</span>'; }
@@ -729,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeRecoveryToken = res.token || null;
 
         if (targetMaskedEmail) {
-          targetMaskedEmail.textContent = res.masked_email || 'your registered email';
+          targetMaskedEmail.textContent = res.masked_email || identifier;
         }
 
         formStep1.style.display = 'none';
@@ -740,7 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inputRecoveryCode.focus();
           }
         }
-        showToast(res.message || 'Recovery code sent to your email!', 'success');
+        showToast('Recovery verification code sent to your email.', 'success');
       } catch (err) {
         if (errStep1) {
           errStep1.textContent = err.message;

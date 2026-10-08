@@ -90,7 +90,7 @@ const api = {
     async forgotPassword(identifier) {
       return await request('/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ identifier })
+        body: JSON.stringify({ identifier, email: identifier })
       });
     },
     async verifyResetCode(identifier, code, token) {

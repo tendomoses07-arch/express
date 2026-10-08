@@ -84,6 +84,7 @@
     }
 
     showAppLayout() {
+      this.closeModal('modalPasswordRecovery');
       document.getElementById('adminLoginPortal').style.display = 'none';
       document.getElementById('adminAppLayout').style.display = 'flex';
 
@@ -163,6 +164,7 @@
       if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
           e.preventDefault();
+          this.closeModal('modalPasswordRecovery');
           const errBox = document.getElementById('loginErrorBox');
           const submitBtn = document.getElementById('loginSubmitBtn');
           errBox.style.display = 'none';
@@ -599,6 +601,11 @@
       document.getElementById('recoveryStep2Form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         await this.handleRecoveryStep2();
+      });
+
+      document.getElementById('recoveryStep1CancelBtn')?.addEventListener('click', () => {
+        this.closeModal('modalPasswordRecovery');
+        document.getElementById('loginIdentifier')?.focus();
       });
 
       document.getElementById('recoveryBackToStep1Btn')?.addEventListener('click', () => {
@@ -1467,7 +1474,19 @@
       const submitBtn = document.getElementById('recoveryStep1SubmitBtn');
 
       if (!identifier) return;
+
+      if (!identifier.includes('@') || !identifier.includes('.')) {
+        if (errBox) {
+          errBox.textContent = 'Please enter a valid email address.';
+          errBox.style.display = 'block';
+        } else {
+          this.showToast('Please enter a valid email address.', 'warning');
+        }
+        return;
+      }
+
       if (errBox) errBox.style.display = 'none';
+      const submitBtn = document.getElementById('recoveryStep1SubmitBtn');
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending Code...'; }
 
       try {
@@ -1476,7 +1495,7 @@
         this.activeRecoveryToken = res.token || null;
 
         const masked = document.getElementById('recoveryTargetMaskedEmail');
-        if (masked) masked.textContent = res.masked_email || 'your registered email';
+        if (masked) masked.textContent = res.masked_email || identifier;
 
         document.getElementById('recoveryStep1Form').style.display = 'none';
         const step2 = document.getElementById('recoveryStep2Form');
@@ -1485,7 +1504,7 @@
           const codeInput = document.getElementById('recoveryCodeInput');
           if (codeInput) { codeInput.value = ''; codeInput.focus(); }
         }
-        this.showToast(res.message || 'Verification code sent to your registered email!', 'success');
+        this.showToast('Recovery verification code sent to your email.', 'success');
       } catch (err) {
         if (errBox) {
           errBox.textContent = err.message;

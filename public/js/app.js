@@ -53,6 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (gate) gate.style.display = 'none';
     if (content) content.style.display = 'block';
+    if (typeof closePasswordRecoveryModal === 'function') {
+      closePasswordRecoveryModal();
+    }
 
     if (headerUserBadge) {
       headerUserBadge.style.display = 'inline-flex';
@@ -1412,6 +1415,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (courierLoginForm) {
     courierLoginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (typeof closePasswordRecoveryModal === 'function') closePasswordRecoveryModal();
       const phone = document.getElementById('courierPhoneInput').value.trim();
       const pass = document.getElementById('courierPasswordInput').value;
 
@@ -1824,6 +1828,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (customerLoginForm) {
     customerLoginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (typeof closePasswordRecoveryModal === 'function') closePasswordRecoveryModal();
       const identifier = document.getElementById('customerLoginPhone').value.trim();
       const pass = document.getElementById('customerLoginPassword').value;
 
@@ -2076,6 +2081,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (gateLoginForm) {
     gateLoginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (typeof closePasswordRecoveryModal === 'function') closePasswordRecoveryModal();
       const identifier = document.getElementById('gateLoginIdentifier').value.trim();
       const password = document.getElementById('gateLoginPassword').value;
       const errorDiv = document.getElementById('gateLoginError');
@@ -2883,15 +2889,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (errStep2) errStep2.style.display = 'none';
     if (errStep3) errStep3.style.display = 'none';
 
-    if (inputRecoveryIdentifier && prefilledIdentifier) {
-      inputRecoveryIdentifier.value = prefilledIdentifier;
+    if (inputRecoveryIdentifier) {
+      inputRecoveryIdentifier.value = (prefilledIdentifier && prefilledIdentifier.includes('@')) ? prefilledIdentifier : '';
     }
 
     modalRecovery.style.display = 'flex';
     modalRecovery.classList.add('active');
     setTimeout(() => {
       if (inputRecoveryIdentifier) inputRecoveryIdentifier.focus();
-    }, 100);
+    }, 60);
   }
 
   function closePasswordRecoveryModal() {
@@ -2902,33 +2908,64 @@ document.addEventListener('DOMContentLoaded', () => {
     activeRecoveryIdentifier = '';
   }
 
+  window.openPasswordRecoveryModal = openPasswordRecoveryModal;
+  window.closePasswordRecoveryModal = closePasswordRecoveryModal;
+
   if (btnCloseRecovery) btnCloseRecovery.addEventListener('click', closePasswordRecoveryModal);
+
+  const btnCancelStep1 = document.getElementById('recoveryStep1CancelBtn');
+  if (btnCancelStep1) {
+    btnCancelStep1.addEventListener('click', () => {
+      closePasswordRecoveryModal();
+      const gateLoginInput = document.getElementById('gateLoginIdentifier');
+      if (gateLoginInput) gateLoginInput.focus();
+    });
+  }
+
+  if (modalRecovery) {
+    modalRecovery.addEventListener('click', (e) => {
+      if (e.target === modalRecovery) {
+        closePasswordRecoveryModal();
+      }
+    });
+  }
+
   if (btnRecoveryDone) btnRecoveryDone.addEventListener('click', () => {
+    const savedId = activeRecoveryIdentifier;
     closePasswordRecoveryModal();
     const gateLoginId = document.getElementById('gateLoginIdentifier');
-    if (gateLoginId && activeRecoveryIdentifier) {
-      gateLoginId.value = activeRecoveryIdentifier;
+    if (gateLoginId && savedId) {
+      gateLoginId.value = savedId;
       const pass = document.getElementById('gateLoginPassword');
       if (pass) pass.focus();
     }
+    showToast('Please sign in with your updated password.', 'info');
   });
 
-  // Open triggers
+  // Open triggers: Handle class and individual element IDs directly
+  const handleOpenRecoveryTrigger = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    let candidate = '';
+    const gateLoginInput = document.getElementById('gateLoginIdentifier');
+    const custLoginInput = document.getElementById('customerLoginPhone');
+
+    if (gateLoginInput && gateLoginInput.value.trim() && gateLoginInput.value.includes('@')) {
+      candidate = gateLoginInput.value.trim();
+    } else if (custLoginInput && custLoginInput.value.trim() && custLoginInput.value.includes('@')) {
+      candidate = custLoginInput.value.trim();
+    }
+
+    openPasswordRecoveryModal(candidate);
+  };
+
   document.querySelectorAll('.recovery-open-trigger').forEach(trigger => {
-    trigger.addEventListener('click', (e) => {
-      e.preventDefault();
-      let candidate = '';
-      const gateLoginInput = document.getElementById('gateLoginIdentifier');
-      const custLoginInput = document.getElementById('customerLoginPhone');
-      const courLoginInput = document.getElementById('courierPhoneInput');
-
-      if (gateLoginInput && gateLoginInput.value.trim()) candidate = gateLoginInput.value.trim();
-      else if (custLoginInput && custLoginInput.value.trim()) candidate = custLoginInput.value.trim();
-      else if (courLoginInput && courLoginInput.value.trim()) candidate = courLoginInput.value.trim();
-
-      openPasswordRecoveryModal(candidate);
-    });
+    trigger.addEventListener('click', handleOpenRecoveryTrigger);
   });
+
+  document.getElementById('gateForgotPasswordLink')?.addEventListener('click', handleOpenRecoveryTrigger);
+  document.getElementById('customerForgotPasswordLink')?.addEventListener('click', handleOpenRecoveryTrigger);
+  document.getElementById('courierForgotPasswordLink')?.addEventListener('click', handleOpenRecoveryTrigger);
 
   // Step 1: Send recovery code
   if (formStep1) {
@@ -2936,6 +2973,16 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const identifier = inputRecoveryIdentifier ? inputRecoveryIdentifier.value.trim() : '';
       if (!identifier) return;
+
+      if (!identifier.includes('@') || !identifier.includes('.')) {
+        if (errStep1) {
+          errStep1.textContent = 'Please enter a valid email address.';
+          errStep1.style.display = 'block';
+        } else {
+          showToast('Please enter a valid email address.', 'warning');
+        }
+        return;
+      }
 
       if (errStep1) errStep1.style.display = 'none';
       const btn = document.getElementById('recoveryStep1SubmitBtn');
@@ -2947,7 +2994,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeRecoveryToken = res.token || null;
 
         if (targetMaskedEmail) {
-          targetMaskedEmail.textContent = res.masked_email || 'your registered email';
+          targetMaskedEmail.textContent = res.masked_email || identifier;
         }
 
         formStep1.style.display = 'none';
@@ -2958,7 +3005,8 @@ document.addEventListener('DOMContentLoaded', () => {
             inputRecoveryCode.focus();
           }
         }
-        showToast(res.message || 'Recovery code sent to your email!', 'success');
+        // ONLY show the recovery confirmation message after the user explicitly requested it and request succeeded:
+        showToast('Recovery verification code sent to your email.', 'success');
       } catch (err) {
         if (errStep1) {
           errStep1.textContent = err.message;
@@ -2967,7 +3015,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast(err.message, 'error');
         }
       } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Send Recovery Code to Email →</span>'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span>Send Recovery Code</span>'; }
       }
     });
   }

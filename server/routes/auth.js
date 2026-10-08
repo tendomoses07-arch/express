@@ -296,11 +296,10 @@ router.get('/me', authenticateToken, (req, res) => {
 // 1. Request Password Recovery Code
 router.post('/forgot-password', async (req, res) => {
   try {
-    const { identifier } = req.body;
-    const target = (identifier || '').trim();
+    const target = (req.body.email || req.body.identifier || req.body.phone || '').trim();
 
     if (!target) {
-      return res.status(400).json({ error: 'Please enter your registered email address or phone number.' });
+      return res.status(400).json({ error: 'Please enter your registered email address.' });
     }
 
     // Lookup user:
@@ -384,7 +383,7 @@ router.post('/forgot-password', async (req, res) => {
 
     res.json({
       success: true,
-      message: `A recovery code has been sent to your registered email (${masked}).`,
+      message: 'Recovery verification code sent to your email.',
       masked_email: masked,
       token,
       expires_in_minutes: 15,
@@ -510,6 +509,17 @@ router.post('/reset-password', async (req, res) => {
 
     // Update password in database
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(password_hash, resetRecord.user_id);
+
+    // Sync to PostgreSQL/Supabase if pool is configured
+    try {
+      const { getPgPool } = require('../supabase');
+      const pool = getPgPool();
+      if (pool) {
+        pool.query('UPDATE users SET password_hash = $1 WHERE email = $2 OR id = $3', [password_hash, resetRecord.email, resetRecord.user_id]).catch(pgErr => {
+          console.warn('Postgres password sync background notice:', pgErr.message);
+        });
+      }
+    } catch (_) {}
 
     // Mark current reset token as used
     db.prepare('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(resetRecord.id);
