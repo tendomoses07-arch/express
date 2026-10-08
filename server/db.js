@@ -189,9 +189,22 @@ function initDatabase() {
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      email TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      verified_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
     CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
     CREATE INDEX IF NOT EXISTS idx_password_resets_code ON password_resets(code);
+    CREATE INDEX IF NOT EXISTS idx_email_verif_email ON email_verifications(email);
+    CREATE INDEX IF NOT EXISTS idx_email_verif_code ON email_verifications(code);
   `);
 
   // Migrate users table columns if running against existing database
@@ -203,6 +216,10 @@ function initDatabase() {
     db.exec("UPDATE users SET admin_role = NULL WHERE role != 'admin' AND admin_role IS NOT NULL;");
     if (!userCols.includes('is_active')) {
       db.exec("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1;");
+    }
+    if (!userCols.includes('email_verified')) {
+      db.exec("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0;");
+      db.exec("UPDATE users SET email_verified = 1 WHERE email_verified = 0 OR email_verified IS NULL;");
     }
   } catch (userColErr) {
     console.warn('Users table column migration check warning:', userColErr.message);

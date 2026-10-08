@@ -87,6 +87,18 @@ const api = {
     },
     getUser: getStoredUser,
     getToken: getStoredToken,
+    async sendVerificationCode(email) {
+      return await request('/auth/send-verification-code', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
+    },
+    async verifyEmail(email, code) {
+      return await request('/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ email, code })
+      });
+    },
     async forgotPassword(identifier) {
       return await request('/auth/forgot-password', {
         method: 'POST',

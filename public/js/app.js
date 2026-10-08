@@ -3031,9 +3031,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closePasswordRecoveryModal() {
-    if (!modalRecovery) return;
-    modalRecovery.style.display = 'none';
-    modalRecovery.classList.remove('active');
+    const modal = document.getElementById('modalPasswordRecovery');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.classList.remove('active');
   }
 
   window.openPasswordRecoveryModal = openPasswordRecoveryModal;

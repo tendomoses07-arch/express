@@ -99,7 +99,7 @@ function requireCourier(req, res, next) {
 }
 
 // Register Customer (Email or Phone Number required)
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { full_name, phone, email, identifier, password } = req.body;
 
@@ -157,17 +157,19 @@ router.post('/register', (req, res) => {
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
+    const initialVerified = validatedEmail ? 0 : 1;
     const result = db.prepare(`
-      INSERT INTO users (full_name, phone, email, password_hash, role)
-      VALUES (?, ?, ?, ?, 'customer')
-    `).run(full_name.trim(), validatedPhone, validatedEmail, password_hash);
+      INSERT INTO users (full_name, phone, email, password_hash, role, email_verified)
+      VALUES (?, ?, ?, ?, 'customer', ?)
+    `).run(full_name.trim(), validatedPhone, validatedEmail, password_hash, initialVerified);
 
     const user = {
       id: result.lastInsertRowid,
       full_name: full_name.trim(),
       phone: validatedPhone,
       email: validatedEmail,
-      role: 'customer'
+      role: 'customer',
+      email_verified: Boolean(initialVerified)
     };
 
     // Immediately link all past deliveries associated with this customer phone so order history is preserved
@@ -177,6 +179,30 @@ router.post('/register', (req, res) => {
         SET customer_id = ?
         WHERE sender_phone = ? AND (customer_id IS NULL OR customer_id != ?)
       `).run(user.id, validatedPhone, user.id);
+    }
+
+    // If user registered with email, automatically generate & send a 6-digit email verification code
+    let emailVerificationSent = false;
+    let emailPreviewUrl = null;
+    if (validatedEmail) {
+      try {
+        const verifCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const verifExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        db.prepare(`
+          INSERT INTO email_verifications (user_id, email, code, expires_at)
+          VALUES (?, ?, ?, ?)
+        `).run(user.id, validatedEmail, verifCode, verifExpiresAt);
+
+        const emailResult = await emailService.sendEmailVerificationCode({
+          to: validatedEmail,
+          name: user.full_name,
+          code: verifCode
+        });
+        emailVerificationSent = true;
+        emailPreviewUrl = emailResult.previewUrl || null;
+      } catch (mailErr) {
+        console.warn('Initial verification email dispatch warning:', mailErr.message);
+      }
     }
 
     // Sync newly registered user to PostgreSQL / Supabase if pool is configured
@@ -195,7 +221,12 @@ router.post('/register', (req, res) => {
     } catch (_) {}
 
     const token = jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ user, token });
+    res.status(201).json({
+      user,
+      token,
+      email_verification_sent: emailVerificationSent,
+      email_preview_url: emailPreviewUrl
+    });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ error: 'Failed to create account: ' + err.message });
@@ -272,7 +303,8 @@ router.post('/login', (req, res) => {
       email: user.email,
       role: user.role,
       admin_role: user.admin_role || (user.role === 'admin' ? 'super_admin' : null),
-      courier_id: courierInfo ? courierInfo.id : null
+      courier_id: courierInfo ? courierInfo.id : null,
+      email_verified: Boolean(user.email_verified)
     };
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
@@ -290,10 +322,12 @@ router.post('/login', (req, res) => {
 // Current User Me
 router.get('/me', authenticateToken, (req, res) => {
   try {
-    const user = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active, created_at FROM users WHERE id = ?').get(req.user.id);
+    const user = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active, email_verified, created_at FROM users WHERE id = ?').get(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    user.email_verified = Boolean(user.email_verified);
 
     let courier = null;
     if (user.role === 'courier') {
@@ -303,6 +337,130 @@ router.get('/me', authenticateToken, (req, res) => {
     res.json({ user, courier });
   } catch (err) {
     res.status(500).json({ error: 'Failed to retrieve profile' });
+  }
+});
+
+// ===================================================================
+// EMAIL VERIFICATION (6-DIGIT CODE)
+// ===================================================================
+
+// Send / Resend Email Verification Code
+router.post('/send-verification-code', async (req, res) => {
+  try {
+    let email = (req.body.email || req.body.identifier || '').trim().toLowerCase();
+
+    // If email not provided in body, check auth header if available
+    if (!email && req.headers['authorization']) {
+      try {
+        const token = req.headers['authorization'].split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && decoded.email) email = decoded.email.toLowerCase();
+      } catch (_) {}
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Please enter a registered email address to verify.' });
+    }
+
+    const user = db.prepare('SELECT id, full_name, email, email_verified FROM users WHERE LOWER(email) = ?').get(email);
+    if (!user) {
+      return res.status(404).json({ error: 'No account found with this email address.' });
+    }
+
+    if (user.email_verified === 1) {
+      return res.json({ success: true, message: 'This email address is already verified.', already_verified: true });
+    }
+
+    // Generate 6-digit code server-side
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    // Clean up old unverified codes for this user
+    db.prepare('DELETE FROM email_verifications WHERE user_id = ? AND verified_at IS NULL').run(user.id);
+
+    // Save code
+    db.prepare(`
+      INSERT INTO email_verifications (user_id, email, code, expires_at)
+      VALUES (?, ?, ?, ?)
+    `).run(user.id, user.email, code, expiresAt);
+
+    // Dispatch real email via SMTP
+    const emailResult = await emailService.sendEmailVerificationCode({
+      to: user.email,
+      name: user.full_name,
+      code
+    });
+
+    res.json({
+      success: true,
+      message: 'Verification code sent to your email.',
+      masked_email: emailService.maskEmail(user.email),
+      preview_url: emailResult.previewUrl || undefined,
+      dev_code: (process.env.NODE_ENV !== 'production' ? code : undefined)
+    });
+  } catch (err) {
+    console.error('Send verification code error:', err);
+    res.status(500).json({ error: 'Failed to send verification code: ' + err.message });
+  }
+});
+
+// Verify Email using 6-Digit Code
+router.post('/verify-email', (req, res) => {
+  try {
+    let email = (req.body.email || req.body.identifier || '').trim().toLowerCase();
+    const code = (req.body.code || '').trim();
+
+    if (!code) {
+      return res.status(400).json({ error: 'Please enter the 6-digit verification code.' });
+    }
+
+    // If email not provided in body, check auth header
+    if (!email && req.headers['authorization']) {
+      try {
+        const token = req.headers['authorization'].split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && decoded.email) email = decoded.email.toLowerCase();
+      } catch (_) {}
+    }
+
+    const nowIso = new Date().toISOString();
+    let record = null;
+
+    if (email) {
+      record = db.prepare(`
+        SELECT * FROM email_verifications
+        WHERE LOWER(email) = ? AND code = ? AND verified_at IS NULL AND expires_at > ?
+        ORDER BY id DESC LIMIT 1
+      `).get(email, code, nowIso);
+    } else {
+      record = db.prepare(`
+        SELECT * FROM email_verifications
+        WHERE code = ? AND verified_at IS NULL AND expires_at > ?
+        ORDER BY id DESC LIMIT 1
+      `).get(code, nowIso);
+    }
+
+    if (!record) {
+      return res.status(400).json({ error: 'Invalid or expired verification code. Please request a new code.' });
+    }
+
+    // Mark as verified
+    db.prepare('UPDATE email_verifications SET verified_at = CURRENT_TIMESTAMP WHERE id = ?').run(record.id);
+    db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(record.user_id);
+
+    const user = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active, email_verified FROM users WHERE id = ?').get(record.user_id);
+    if (user) {
+      user.email_verified = Boolean(user.email_verified);
+    }
+
+    res.json({
+      success: true,
+      message: 'Email address verified successfully!',
+      user
+    });
+  } catch (err) {
+    console.error('Verify email error:', err);
+    res.status(500).json({ error: 'Failed to verify email: ' + err.message });
   }
 });
 
@@ -388,7 +546,7 @@ router.post('/forgot-password', async (req, res) => {
     const resetLink = `${origin.replace(/\/$/, '')}/#reset-token=${token}`;
 
     // Send recovery email
-    await emailService.sendPasswordRecoveryEmail({
+    const emailResult = await emailService.sendPasswordRecoveryEmail({
       to: user.email,
       name: user.full_name,
       code,
@@ -404,6 +562,7 @@ router.post('/forgot-password', async (req, res) => {
       masked_email: masked,
       token,
       expires_in_minutes: 15,
+      preview_url: emailResult?.previewUrl || undefined,
       dev_code: (process.env.NODE_ENV !== 'production' ? code : undefined)
     });
   } catch (err) {
