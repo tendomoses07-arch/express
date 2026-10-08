@@ -208,7 +208,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const reqSection = document.getElementById('requestSection');
       if (reqSection) {
-        reqSection.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => {
+          reqSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
       }
       return;
     }
@@ -273,6 +275,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Authoritative Shared Logout Handler
+  function handleLogout() {
+    window.kolaApi.auth.logout();
+    window.kolaApi.realtime.disconnect();
+    isRealtimeManagerInitialized = false;
+    lastCourierTasksSignature = '';
+    const taskContainer = document.getElementById('courierTasksContainer');
+    if (taskContainer) taskContainer.innerHTML = '';
+    const activeSec = document.getElementById('activeDeliverySection');
+    if (activeSec) activeSec.style.display = 'none';
+    showToast('Logged out of Kola Express', 'info');
+    checkAuthAndEnforceGate();
+    closeMobileNav();
+  }
+
+  // Global helper on window - defined early to guarantee availability across all components
+  window.kolaApp = {
+    showToast,
+    viewTrack(id) {
+      switchView('track', id);
+    },
+    switchView,
+    handleBrandClick,
+    checkAuthAndEnforceGate,
+    checkActiveSenderHandovers,
+    handleLogout,
+    refreshCourierTasks() {
+      if (typeof loadCourierTasks === 'function') loadCourierTasks();
+    },
+    confirmHandover(deliveryId) {
+      if (window._kolaConfirmHandover) return window._kolaConfirmHandover(deliveryId);
+    },
+    disputeHandover(deliveryId) {
+      if (window._kolaDisputeHandover) return window._kolaDisputeHandover(deliveryId);
+    },
+    loadActiveDelivery() {
+      if (typeof loadActiveDelivery === 'function') loadActiveDelivery();
+    }
+  };
+
   // Bind nav links
   navLinks.forEach(link => {
     link.addEventListener('click', (e) => {
@@ -287,6 +329,29 @@ document.addEventListener('DOMContentLoaded', () => {
     chip.addEventListener('click', () => {
       const view = chip.dataset.view;
       if (view) switchView(view);
+    });
+  });
+
+  // Bind mobile bottom bar tabs (Home, Send, Track, Account, Log Out)
+  document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (btn.classList.contains('logout-btn') || btn.dataset.action === 'logout') {
+        handleLogout();
+        return;
+      }
+      const view = btn.dataset.view;
+      if (view) {
+        switchView(view);
+      }
+    });
+  });
+
+  // Bind all logout buttons throughout the portal (header badge, nav menu, bottom tabs, account dashboard)
+  document.querySelectorAll('.logout-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleLogout();
     });
   });
 
@@ -1961,21 +2026,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Logout Buttons
-  document.querySelectorAll('.logout-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      window.kolaApi.auth.logout();
-      window.kolaApi.realtime.disconnect();
-      isRealtimeManagerInitialized = false;
-      lastCourierTasksSignature = '';
-      const taskContainer = document.getElementById('courierTasksContainer');
-      if (taskContainer) taskContainer.innerHTML = '';
-      const activeSec = document.getElementById('activeDeliverySection');
-      if (activeSec) activeSec.style.display = 'none';
-      showToast('Logged out of Kola Express', 'info');
-      checkAuthAndEnforceGate();
-    });
-  });
+  // Logout buttons already authoritatively bound to handleLogout
 
   // ===================================================================
   // 8. MANDATORY ACCESS GATE HANDLERS
@@ -2238,19 +2289,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Global helper on window
-  window.kolaApp = {
-    showToast,
-    viewTrack(id) {
-      switchView('track', id);
-    },
-    switchView,
-    handleBrandClick,
-    checkAuthAndEnforceGate,
-    checkActiveSenderHandovers,
-    refreshCourierTasks() {
-      loadCourierTasks();
-    },
+  // Enrich global helper on window with async handover and active delivery handlers
+  Object.assign(window.kolaApp, {
     async confirmHandover(deliveryId) {
       try {
         const res = await window.kolaApi.deliveries.confirmHandover(deliveryId);
@@ -2274,7 +2314,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadActiveDelivery() {
       loadActiveDelivery();
     }
-  };
+  });
 
   // ===================================================================
   // 9. AUTHORITATIVE REALTIME & ACTIVE DELIVERY DASHBOARD ENGINE
