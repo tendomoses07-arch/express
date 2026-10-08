@@ -60,14 +60,14 @@
           </div>
         </div>
 
-        <!-- Mode Toggle Tabs (Register is active by default) -->
+        <!-- Mode Toggle Tabs (Login is active by default) -->
         <div class="auth-gate-tabs">
-          <button type="button" class="auth-gate-tab active" id="tabGateRegister">Create Account</button>
-          <button type="button" class="auth-gate-tab" id="tabGateLogin">Log In</button>
+          <button type="button" class="auth-gate-tab active" id="tabGateLogin">Log In</button>
+          <button type="button" class="auth-gate-tab" id="tabGateRegister">Create Account</button>
         </div>
 
-        <!-- Form 1: Registration Form -->
-        <form id="gateRegisterForm" class="auth-gate-form">
+        <!-- Form 1: Registration Form (Hidden by default) -->
+        <form id="gateRegisterForm" class="auth-gate-form" style="display: none;">
           <div class="form-group">
             <label for="gateRegFullName">Full Name <span class="req">*</span></label>
             <input type="text" id="gateRegFullName" class="form-input" placeholder="e.g. Sarah Namubiru" required autocomplete="name">
@@ -102,8 +102,8 @@
           </div>
         </form>
 
-        <!-- Form 2: Login Form (Hidden by default) -->
-        <form id="gateLoginForm" class="auth-gate-form" style="display: none;">
+        <!-- Form 2: Login Form (Visible by default) -->
+        <form id="gateLoginForm" class="auth-gate-form">
           <div class="form-group">
             <label for="gateLoginIdentifier">Email Address or Phone Number <span class="req">*</span></label>
             <input type="text" id="gateLoginIdentifier" class="form-input" placeholder="e.g. 0775123456 or sarah@example.com" required autocomplete="username">
