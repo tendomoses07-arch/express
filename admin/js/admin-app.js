@@ -1486,7 +1486,6 @@
       }
 
       if (errBox) errBox.style.display = 'none';
-      const submitBtn = document.getElementById('recoveryStep1SubmitBtn');
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending Code...'; }
 
       try {
