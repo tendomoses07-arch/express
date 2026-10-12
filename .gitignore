@@ -21,5 +21,7 @@ supabase/.temp/
 *.db
 *.db-journal
 server/*.db
-server/kola_express.db
 *.backup
+*.vault
+.admin_credentials.vault
+server/.admin_credentials.vault

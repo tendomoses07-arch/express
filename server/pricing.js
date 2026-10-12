@@ -504,15 +504,19 @@ async function calculateLiveDeliveryQuote({
     destLocation = geoDrop.location;
   }
 
-  // 3. Compute live road routing (distance km & ETA) via OSRM Live Driving Engine
+  // 3. Compute live road routing (distance km & ETA) via Google Maps Routes Engine (with OSRM fallback)
   let route;
   try {
-    route = await mapService.getRoadRoute(originLocation, destLocation);
+    const googleMapsService = require('./services/googleMapsService');
+    route = await googleMapsService.calculateAuthoritativeRoute({
+      origin: originLocation,
+      destination: destLocation
+    });
   } catch (routeErr) {
     return {
       error: true,
       routing_error: true,
-      provider: 'osrm',
+      provider: 'routing_engine',
       message: `Road routing error: ${routeErr.message}`
     };
   }
@@ -550,8 +554,10 @@ async function calculateLiveDeliveryQuote({
     duration_minutes,
     eta_text,
     route_type,
-    route_source: route.source || 'OSRM Live Driving Route',
-    map_provider: 'osrm',
+    route_source: route.engine || route.route_description || 'Live Road Routing',
+    map_provider: route.provider || 'google_maps',
+    distance_meters: route.distance_meters || Math.round(distance_km * 1000),
+    polyline: route.polyline || null,
     origin: {
       address: pickup,
       title: originLocation.title,

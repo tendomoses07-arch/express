@@ -7,7 +7,17 @@ const { db } = require('../db');
 const { sanitizeAndValidateUgandaPhone } = require('../paymentGateway');
 const emailService = require('../services/emailService');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'kola_express_secret_jwt_key_2026';
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === 'kola_express_secret_jwt_key_2026') {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[SECURITY FATAL] Production environment requires a secure, non-default JWT_SECRET in environment configuration.');
+  } else {
+    if (!global.__KOLA_EPHEMERAL_JWT_SECRET) {
+      global.__KOLA_EPHEMERAL_JWT_SECRET = crypto.randomBytes(32).toString('hex');
+    }
+    JWT_SECRET = process.env.JWT_SECRET || global.__KOLA_EPHEMERAL_JWT_SECRET;
+  }
+}
 
 // Middleware for authenticating requests
 function authenticateToken(req, res, next) {
@@ -18,41 +28,64 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
     if (err) return res.status(403).json({ error: 'Invalid or expired token' });
-    
-    // Check if the user exists in database and enrich req.user
-    if (user && user.id) {
-      const dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE id = ?').get(user.id);
-      if (dbUser) {
-        req.user = { ...user, ...dbUser };
-        return next();
+    if (!decodedUser) return res.status(401).json({ error: 'Malformed authentication token' });
+
+    // Look up user in database by ID, or fallback to phone / email
+    let dbUser = null;
+    if (decodedUser.id) {
+      dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active, password_changed_at FROM users WHERE id = ?').get(decodedUser.id);
+    }
+
+    if (!dbUser && (decodedUser.phone || decodedUser.email)) {
+      if (decodedUser.phone) {
+        dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active, password_changed_at FROM users WHERE phone = ?').get(decodedUser.phone);
+      }
+      if (!dbUser && decodedUser.email) {
+        dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active, password_changed_at FROM users WHERE LOWER(email) = LOWER(?)').get(decodedUser.email);
       }
     }
 
-    // If ID from token not found in SQLite (e.g. reseeded DB), try matching by phone or email
-    if (user && (user.phone || user.email)) {
-      let dbUser = null;
-      if (user.phone) {
-        dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE phone = ?').get(user.phone);
-      }
-      if (!dbUser && user.email) {
-        dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE LOWER(email) = LOWER(?)').get(user.email);
-      }
-      if (dbUser) {
-        req.user = { ...user, ...dbUser };
-        return next();
+    // MANDATORY: If token user is not found in database, reject immediately
+    if (!dbUser) {
+      return res.status(401).json({ error: 'User account associated with this token was not found' });
+    }
+
+    // MANDATORY: If account is deactivated, reject immediately
+    if (dbUser.is_active === 0 || dbUser.is_active === false) {
+      return res.status(403).json({ error: 'Account has been deactivated. Please contact support.' });
+    }
+
+    // Invalidate existing sessions if password was rotated after token issuance
+    if (dbUser.password_changed_at && decodedUser.iat) {
+      const rawDate = String(dbUser.password_changed_at).trim();
+      const isoDate = rawDate.includes('T') ? (rawDate.endsWith('Z') ? rawDate : rawDate + 'Z') : rawDate.replace(' ', 'T') + 'Z';
+      const passwordChangedEpoch = Math.floor(new Date(isoDate).getTime() / 1000);
+      if (decodedUser.iat < passwordChangedEpoch) {
+        return res.status(401).json({ error: 'Session invalidated due to password rotation. Please log in again.' });
       }
     }
 
-    req.user = user;
+    // Enrich request with AUTHORITATIVE database user properties
+    req.user = {
+      ...decodedUser,
+      id: dbUser.id,
+      full_name: dbUser.full_name,
+      phone: dbUser.phone,
+      email: dbUser.email,
+      role: dbUser.role,
+      admin_role: dbUser.admin_role,
+      is_active: dbUser.is_active
+    };
+
     next();
   });
 }
 
 // Middleware for Admin only (any administrative role)
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
+  if (!req.user || req.user.role !== 'admin' || req.user.is_active === 0) {
     return res.status(403).json({ error: 'Administrative authorization required' });
   }
   next();
@@ -60,7 +93,7 @@ function requireAdmin(req, res, next) {
 
 // Middleware for Super Admin only (full access)
 function requireSuperAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin' || (req.user.admin_role && req.user.admin_role !== 'super_admin')) {
+  if (!req.user || req.user.role !== 'admin' || (req.user.admin_role && req.user.admin_role !== 'super_admin') || req.user.is_active === 0) {
     return res.status(403).json({ error: 'Access Denied: Super Admin permission required for this action' });
   }
   next();
@@ -68,7 +101,7 @@ function requireSuperAdmin(req, res, next) {
 
 // Middleware for Operations Admin or Super Admin
 function requireOpsOrSuperAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
+  if (!req.user || req.user.role !== 'admin' || req.user.is_active === 0) {
     return res.status(403).json({ error: 'Administrative authorization required' });
   }
   const allowed = ['super_admin', 'operations_admin'];
@@ -80,7 +113,7 @@ function requireOpsOrSuperAdmin(req, res, next) {
 
 // Middleware for Finance Admin or Super Admin
 function requireFinanceOrSuperAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
+  if (!req.user || req.user.role !== 'admin' || req.user.is_active === 0) {
     return res.status(403).json({ error: 'Administrative authorization required' });
   }
   const allowed = ['super_admin', 'finance_admin'];
@@ -92,7 +125,7 @@ function requireFinanceOrSuperAdmin(req, res, next) {
 
 // Middleware for Courier only
 function requireCourier(req, res, next) {
-  if (!req.user || (req.user.role !== 'courier' && req.user.role !== 'admin')) {
+  if (!req.user || (req.user.role !== 'courier' && req.user.role !== 'admin') || req.user.is_active === 0) {
     return res.status(403).json({ error: 'Courier access required' });
   }
   next();
@@ -560,10 +593,7 @@ router.post('/forgot-password', async (req, res) => {
       success: true,
       message: 'Recovery verification code sent to your email.',
       masked_email: masked,
-      token,
-      expires_in_minutes: 15,
-      preview_url: emailResult?.previewUrl || undefined,
-      dev_code: (process.env.NODE_ENV !== 'production' ? code : undefined)
+      expires_in_minutes: 15
     });
   } catch (err) {
     console.error('Forgot password error:', err);
@@ -655,6 +685,8 @@ router.post('/reset-password', async (req, res) => {
     const nowIso = new Date().toISOString();
     let resetRecord = null;
 
+    const targetIdentifier = (req.body.identifier || req.body.email || '').trim().toLowerCase();
+
     if (token) {
       resetRecord = db.prepare(`
         SELECT pr.*, u.full_name, u.role, u.admin_role
@@ -662,9 +694,15 @@ router.post('/reset-password', async (req, res) => {
         JOIN users u ON u.id = pr.user_id
         WHERE pr.token = ? AND pr.used_at IS NULL AND pr.expires_at > ?
       `).get(token, nowIso);
-    }
-
-    if (!resetRecord && code) {
+    } else if (code && targetIdentifier) {
+      resetRecord = db.prepare(`
+        SELECT pr.*, u.full_name, u.role, u.admin_role
+        FROM password_resets pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE pr.code = ? AND (LOWER(pr.email) = ? OR u.phone = ?) AND pr.used_at IS NULL AND pr.expires_at > ?
+        ORDER BY pr.id DESC LIMIT 1
+      `).get(code.trim(), targetIdentifier, targetIdentifier, nowIso);
+    } else if (code) {
       resetRecord = db.prepare(`
         SELECT pr.*, u.full_name, u.role, u.admin_role
         FROM password_resets pr

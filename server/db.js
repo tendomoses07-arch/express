@@ -109,6 +109,8 @@ function initDatabase() {
       delivery_confirmed_by_pin INTEGER DEFAULT 0,
       picked_up_at DATETIME,
       delivered_at DATETIME,
+      pickup_place_id TEXT,
+      dropoff_place_id TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(customer_id) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY(courier_id) REFERENCES couriers(id) ON DELETE SET NULL
@@ -221,6 +223,9 @@ function initDatabase() {
       db.exec("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0;");
       db.exec("UPDATE users SET email_verified = 1 WHERE email_verified = 0 OR email_verified IS NULL;");
     }
+    if (!userCols.includes('password_changed_at')) {
+      db.exec("ALTER TABLE users ADD COLUMN password_changed_at DATETIME;");
+    }
   } catch (userColErr) {
     console.warn('Users table column migration check warning:', userColErr.message);
   }
@@ -279,7 +284,9 @@ function initDatabase() {
       { name: 'pricing_version', type: "TEXT DEFAULT 'v1.0'" },
       { name: 'routing_provider', type: "TEXT DEFAULT 'osrm'" },
       { name: 'route_reference', type: 'TEXT' },
-      { name: 'pricing_calculation_timestamp', type: 'DATETIME' }
+      { name: 'pricing_calculation_timestamp', type: 'DATETIME' },
+      { name: 'pickup_place_id', type: 'TEXT' },
+      { name: 'dropoff_place_id', type: 'TEXT' }
     ];
     newCols.forEach(col => {
       if (!deliveryCols.includes(col.name)) {
@@ -309,17 +316,36 @@ function initDatabase() {
       WHERE pickup_address IS NULL OR dropoff_address IS NULL OR final_delivery_fee IS NULL;
     `);
 
+    // Ensure all historical PIN-bearing notes in delivery_status_history are safely redacted
+    try {
+      db.prepare(`
+        UPDATE delivery_status_history
+        SET note = 'Recipient delivery confirmation PIN generated.'
+        WHERE status = 'Delivery PIN Generated'
+          AND (note LIKE '%Special recipient delivery confirmation PIN generated:%' OR note LIKE '%PIN generated:%')
+      `).run();
+    } catch (cleanErr) {
+      console.warn('Status history PIN redaction warning:', cleanErr.message);
+    }
+
     // Ensure all 3 administrative roles exist: Super Admin, Operations Admin, and Finance Admin
+    const isProductionEnv = process.env.NODE_ENV === 'production';
+    const allowDemoSeedEnv = process.env.ALLOW_DEMO_SEED === 'true' || process.env.DEMO_MODE === 'true';
+
     const ensureAdmin = (fullName, email, phone, role, adminRole, plainPassword) => {
-      const existing = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(email);
-      const hash = bcrypt.hashSync(plainPassword, 10);
+      const existing = db.prepare('SELECT id, is_active FROM users WHERE LOWER(email) = LOWER(?)').get(email);
       if (existing) {
-        db.prepare("UPDATE users SET role = ?, admin_role = ?, is_active = 1 WHERE id = ?").run(role, adminRole, existing.id);
-      } else {
+        // PRESERVE existing account: ensure role and admin_role are authoritative, but DO NOT overwrite password or reset is_active!
+        db.prepare("UPDATE users SET role = ?, admin_role = ? WHERE id = ?").run(role, adminRole, existing.id);
+      } else if (!isProductionEnv || allowDemoSeedEnv) {
+        // Only seed default baseline accounts when explicitly allowed or in non-production
+        const hash = bcrypt.hashSync(plainPassword, 10);
         db.prepare(`
           INSERT INTO users (full_name, phone, email, password_hash, role, admin_role, is_active)
           VALUES (?, ?, ?, ?, ?, ?, 1)
         `).run(fullName, phone, email, hash, role, adminRole);
+      } else {
+        console.warn(`[SECURITY NOTICE] Initial admin account ${email} does not exist in production database. Provision via secure setup CLI.`);
       }
     };
 
@@ -497,19 +523,19 @@ function seedInitialData() {
 
   // Check if users exist
   const existingUsers = db.prepare('SELECT COUNT(*) as count FROM users').get();
-  if (existingUsers.count === 0) {
+  if (existingUsers.count === 0 && (!isProduction || allowDemoSeed)) {
     const adminPass = bcrypt.hashSync('admin123', 10);
     const courierPass = bcrypt.hashSync('courier123', 10);
     const customerPass = bcrypt.hashSync('customer123', 10);
 
-    // Baseline administrative staff (always created so portal is securely accessible)
+    // Baseline administrative staff (only in demo/development environments)
     const adminInsert = db.prepare(`
       INSERT INTO users (full_name, phone, email, password_hash, role, admin_role)
       VALUES (?, ?, ?, ?, 'admin', 'super_admin')
     `).run('Kola Administrator', '0700000000', 'admin@kolaexpress.ug', adminPass);
 
     // In production, NEVER automatically insert demo couriers, sample customers, or demo deliveries
-    if (!isProduction && allowDemoSeed) {
+    if (allowDemoSeed) {
       // Courier users for local demo testing
       const c1 = db.prepare(`
         INSERT INTO users (full_name, phone, email, password_hash, role)

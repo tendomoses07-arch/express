@@ -484,6 +484,36 @@ class DeliveryRealtimeService extends EventEmitter {
       return res.status(403).json({ error: 'Invalid or expired token for real-time stream' });
     }
 
+    if (!user) {
+      return res.status(401).json({ error: 'Malformed authentication token' });
+    }
+
+    // Verify user exists in database and is currently active
+    let dbUser = null;
+    if (user.id) {
+      dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE id = ?').get(user.id);
+    }
+    if (!dbUser && (user.phone || user.email)) {
+      if (user.phone) dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE phone = ?').get(user.phone);
+      if (!dbUser && user.email) dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE LOWER(email) = LOWER(?)').get(user.email);
+    }
+
+    if (!dbUser) {
+      return res.status(401).json({ error: 'User account not found' });
+    }
+
+    if (dbUser.is_active === 0 || dbUser.is_active === false) {
+      return res.status(403).json({ error: 'Account has been deactivated' });
+    }
+
+    user = {
+      ...user,
+      id: dbUser.id,
+      role: dbUser.role,
+      phone: dbUser.phone,
+      email: dbUser.email
+    };
+
     // Resolve courier profile if user is a courier
     let courierId = user.courier_id || null;
     if (user.role === 'courier' && !courierId) {

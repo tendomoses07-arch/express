@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { calculateDeliveryQuote, calculateLiveDeliveryQuote } = require('../pricing');
 const { searchAddressSuggestions, geocodeAddress } = require('../services/mapService');
+const googleMapsService = require('../services/googleMapsService');
 const { sanitizeAndValidateUgandaPhone } = require('../paymentGateway');
 const realtimeService = require('../services/realtimeService');
 const jwt = require('jsonwebtoken');
@@ -13,8 +14,29 @@ function optionalAuth(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (token) {
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-      if (!err) req.user = user;
+    jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
+      if (!err && decodedUser) {
+        let dbUser = null;
+        if (decodedUser.id) {
+          dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE id = ?').get(decodedUser.id);
+        }
+        if (!dbUser && (decodedUser.phone || decodedUser.email)) {
+          if (decodedUser.phone) dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE phone = ?').get(decodedUser.phone);
+          if (!dbUser && decodedUser.email) dbUser = db.prepare('SELECT id, full_name, phone, email, role, admin_role, is_active FROM users WHERE LOWER(email) = LOWER(?)').get(decodedUser.email);
+        }
+        if (dbUser && dbUser.is_active !== 0) {
+          req.user = {
+            ...decodedUser,
+            id: dbUser.id,
+            full_name: dbUser.full_name,
+            phone: dbUser.phone,
+            email: dbUser.email,
+            role: dbUser.role,
+            admin_role: dbUser.admin_role,
+            is_active: dbUser.is_active
+          };
+        }
+      }
       next();
     });
   } else {
@@ -53,13 +75,21 @@ router.get('/suggestions', async (req, res) => {
 
 // 0b. Live Map Provider & Config Endpoint
 router.get('/map-config', (req, res) => {
-  res.json({
-    provider: 'osrm',
-    service: 'OpenStreetMap & OSRM Driving Engine',
-    region: 'Uganda',
-    token_required: false,
-    status: 'active'
-  });
+  res.json(googleMapsService.getPublicMapConfig());
+});
+
+// 0b-2. Device Current Location Reverse Geocoding ("Use my current location")
+router.post('/reverse-geocode', async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+    if (lat == null || lng == null) {
+      return res.status(400).json({ error: 'Latitude and longitude coordinates are required for reverse geocoding' });
+    }
+    const result = await googleMapsService.reverseGeocode({ lat, lng });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Reverse geocode failed: ' + err.message });
+  }
 });
 
 // 0c. Live Delivery Realtime SSE Stream (Authenticated & Security-Isolated)
@@ -151,12 +181,14 @@ router.post('/', authenticateToken, async (req, res) => {
       pickup_directions,
       pickup_notes,
       pickup_coords,
+      pickup_place_id,
       recipient_name,
       recipient_phone,
       delivery_location,
       delivery_directions,
       delivery_notes,
       delivery_coords,
+      dropoff_place_id,
       item_description,
       item_category = 'small_parcel',
       special_instructions,
@@ -296,6 +328,9 @@ router.post('/', authenticateToken, async (req, res) => {
     const routingProvider = quote.map_provider || 'osrm';
     const routeRef = quote.route_type || 'OSRM Live Driving Route';
 
+    const resolvedPickupPlaceId = pickup_place_id || pickup_coords?.place_id || null;
+    const resolvedDropoffPlaceId = dropoff_place_id || delivery_coords?.place_id || null;
+
     let deliveryId;
     const createTxn = db.transaction(() => {
       const stmt = db.prepare(`
@@ -312,7 +347,8 @@ router.post('/', authenticateToken, async (req, res) => {
           road_distance, estimated_travel_time,
           base_delivery_fee, distance_fee, surcharges, discounts,
           final_delivery_fee, pricing_version, routing_provider,
-          route_reference, pricing_calculation_timestamp
+          route_reference, pricing_calculation_timestamp,
+          pickup_place_id, dropoff_place_id
         ) VALUES (
           ?, ?, ?, ?,
           ?, ?, ?,
@@ -326,7 +362,8 @@ router.post('/', authenticateToken, async (req, res) => {
           ?, ?,
           ?, ?, ?, ?,
           ?, 'v1.0', ?,
-          ?, CURRENT_TIMESTAMP
+          ?, CURRENT_TIMESTAMP,
+          ?, ?
         )
       `);
 
@@ -369,7 +406,9 @@ router.post('/', authenticateToken, async (req, res) => {
         discounts,
         finalFee,
         routingProvider,
-        routeRef
+        routeRef,
+        resolvedPickupPlaceId,
+        resolvedDropoffPlaceId
       );
 
       deliveryId = result.lastInsertRowid;
@@ -383,7 +422,7 @@ router.post('/', authenticateToken, async (req, res) => {
       db.prepare(`
         INSERT INTO delivery_status_history (delivery_id, status, note, updated_by)
         VALUES (?, 'Delivery PIN Generated', ?, 'System')
-      `).run(deliveryId, `Special recipient delivery confirmation PIN generated: ${delivery_pin}. Provide this PIN to recipient to read to courier on arrival.`);
+      `).run(deliveryId, 'Recipient delivery confirmation PIN generated.');
 
       db.prepare(`
         INSERT INTO delivery_status_history (delivery_id, status, note, updated_by)
@@ -709,19 +748,64 @@ router.get('/:trackingOrId', optionalAuth, (req, res) => {
       SELECT * FROM handover_confirmations WHERE delivery_id = ? ORDER BY id DESC LIMIT 1
     `).get(delivery.id);
 
-    // SECURITY: The Special Delivery PIN must NEVER be exposed to couriers!
-    // Couriers must receive the PIN directly from the recipient at the door.
+    // SECURITY: The Special Delivery PIN is strictly confidential and must NEVER be exposed
+    // to couriers, anonymous visitors, or unrelated parties. It is ONLY accessible to:
+    // 1. The sender customer who placed the delivery, OR
+    // 2. An authorized administrative dispatcher/super-admin.
     const deliveryPayload = { ...delivery };
-    if (req.user && req.user.role === 'courier') {
+    const isSender = req.user && (
+      (delivery.customer_id && req.user.id === delivery.customer_id) ||
+      (req.user.phone && delivery.sender_phone === req.user.phone) ||
+      (req.user.email && delivery.customer_email === req.user.email)
+    );
+    const isAdmin = req.user && req.user.role === 'admin';
+
+    if (!isSender && !isAdmin) {
       delete deliveryPayload.delivery_pin;
     }
+
+    // SECURITY: Sanitize history records so sensitive PINs are never leaked to anonymous or unauthorized callers
+    const sanitizedHistory = history.map(item => {
+      let note = item.note || '';
+      if (!isSender && !isAdmin) {
+        if (item.status === 'Delivery PIN Generated' || /pin/i.test(note)) {
+          note = note.replace(/Special recipient delivery confirmation PIN generated: \d+\.?\s*(Provide this PIN to recipient to read to courier on arrival\.)?/gi, 'Recipient delivery confirmation PIN generated.');
+          note = note.replace(/(PIN(?:\s*generated)?:\s*)\d+/gi, '$1[PROTECTED]');
+          if (delivery.delivery_pin) {
+            const pStr = String(delivery.delivery_pin).trim();
+            if (pStr.length > 0) {
+              note = note.split(pStr).join('[PROTECTED]');
+            }
+          }
+        }
+      }
+      return {
+        ...item,
+        note
+      };
+    });
+
+    // Attach Google Maps turn-by-turn navigation deep links
+    const pLat = delivery.pickup_latitude || delivery.pickup_lat;
+    const pLng = delivery.pickup_longitude || delivery.pickup_lng;
+    const dLat = delivery.dropoff_latitude || delivery.delivery_lat;
+    const dLng = delivery.dropoff_longitude || delivery.delivery_lng;
+
+    deliveryPayload.pickup_nav_url = (pLat && pLng)
+      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pLat + ',' + pLng)}${delivery.pickup_place_id ? '&destination_place_id=' + encodeURIComponent(delivery.pickup_place_id) : ''}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(delivery.pickup_location + ', Uganda')}`;
+
+    deliveryPayload.dropoff_nav_url = (dLat && dLng)
+      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dLat + ',' + dLng)}${delivery.dropoff_place_id ? '&destination_place_id=' + encodeURIComponent(delivery.dropoff_place_id) : ''}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(delivery.delivery_location + ', Uganda')}`;
 
     res.json({
       delivery: deliveryPayload,
       courier,
-      history,
+      history: sanitizedHistory,
       payment,
-      handover: handover || null
+      handover: handover || null,
+      map_config: googleMapsService.getPublicMapConfig()
     });
   } catch (err) {
     console.error('Fetch delivery error:', err);
@@ -729,18 +813,36 @@ router.get('/:trackingOrId', optionalAuth, (req, res) => {
   }
 });
 
-// 4. List deliveries for logged in user or query phone
-router.get('/', optionalAuth, (req, res) => {
+// 4. List deliveries for logged in user (requires authentication)
+router.get('/', authenticateToken, (req, res) => {
   try {
     if (req.user && req.user.role === 'courier') {
       return res.status(403).json({ error: 'Courier accounts must access assigned tasks via /api/couriers/my-deliveries' });
     }
-    const { phone } = req.query;
 
     let deliveries = [];
-    if (req.user) {
-      const dbUser = db.prepare('SELECT id, phone, email FROM users WHERE id = ?').get(req.user.id);
-      const userPhone = dbUser?.phone || req.user.phone || '';
+    if (req.user.role === 'admin') {
+      const { phone } = req.query;
+      if (phone) {
+        const pCheck = sanitizeAndValidateUgandaPhone(phone);
+        const cleanPhone = pCheck.valid ? pCheck.formattedPhone : phone;
+        deliveries = db.prepare(`
+          SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
+          FROM deliveries d
+          LEFT JOIN couriers c ON d.courier_id = c.id
+          WHERE d.sender_phone = ? OR d.recipient_phone = ?
+          ORDER BY d.id DESC
+        `).all(cleanPhone, cleanPhone);
+      } else {
+        deliveries = db.prepare(`
+          SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
+          FROM deliveries d
+          LEFT JOIN couriers c ON d.courier_id = c.id
+          ORDER BY d.id DESC
+        `).all();
+      }
+    } else {
+      const userPhone = req.user.phone || '';
       deliveries = db.prepare(`
         SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
         FROM deliveries d
@@ -749,27 +851,24 @@ router.get('/', optionalAuth, (req, res) => {
            OR (d.sender_phone = ? AND ? != '')
         ORDER BY d.id DESC
       `).all(req.user.id, userPhone, userPhone);
-    } else if (phone) {
-      const pCheck = sanitizeAndValidateUgandaPhone(phone);
-      const cleanPhone = pCheck.valid ? pCheck.formattedPhone : phone;
-      deliveries = db.prepare(`
-        SELECT d.*, c.full_name as courier_name, c.phone as courier_phone, c.plate_number as courier_plate
-        FROM deliveries d
-        LEFT JOIN couriers c ON d.courier_id = c.id
-        WHERE d.sender_phone = ? OR d.recipient_phone = ?
-        ORDER BY d.id DESC
-      `).all(cleanPhone, cleanPhone);
-    } else {
-      return res.status(400).json({ error: 'Authentication or phone query parameter required' });
     }
 
-    // Ensure frontend compatibility attributes are present
-    const formatted = deliveries.map(d => ({
-      ...d,
-      dropoff_location: d.delivery_location,
-      price: d.delivery_fee,
-      delivery_status: d.status
-    }));
+    // Ensure frontend compatibility attributes are present & protect PIN
+    const formatted = deliveries.map(d => {
+      const isSender = (d.customer_id && d.customer_id === req.user.id) ||
+                       (req.user.phone && d.sender_phone === req.user.phone) ||
+                       req.user.role === 'admin';
+      const item = {
+        ...d,
+        dropoff_location: d.delivery_location,
+        price: d.delivery_fee,
+        delivery_status: d.status
+      };
+      if (!isSender) {
+        delete item.delivery_pin;
+      }
+      return item;
+    });
 
     res.json(formatted);
   } catch (err) {

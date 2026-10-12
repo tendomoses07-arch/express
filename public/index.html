@@ -605,7 +605,12 @@
                 </div>
 
                 <div class="form-group location-input-group">
-                  <label for="pickupLocationInput">Type Pickup Address / Landmark <span class="req">*</span></label>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 6px;">
+                    <label for="pickupLocationInput" style="margin-bottom: 0;">Type Pickup Address / Landmark <span class="req">*</span></label>
+                    <button type="button" class="btn-location-gps" id="btnUseCurrentLocation" title="Use current device GPS location">
+                      <span>📍</span> Use my current location
+                    </button>
+                  </div>
                   <div class="address-input-wrapper">
                     <span class="input-icon-prefix">📍</span>
                     <input type="text" id="pickupLocationInput" class="form-input address-live-input" placeholder="Type any street, shop, stage, or area (e.g. Acacia Mall, Kireka Town, Plot 14 Kampala Rd)..." required autocomplete="off">
@@ -672,6 +677,29 @@
                   <input type="text" id="deliveryNotesInput" class="form-input" placeholder="e.g. Call recipient upon arrival">
                 </div>
               </fieldset>
+
+              <!-- Interactive Visual Route Map Card -->
+              <div class="delivery-map-preview-card" id="deliveryMapCard">
+                <div class="map-card-header">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="map-status-dot"></span>
+                    <strong style="font-size: 0.9rem;">Interactive Route Map</strong>
+                  </div>
+                  <span class="map-badge" id="mapProviderBadge">Google Maps Enabled</span>
+                </div>
+                <div class="route-map-canvas" id="deliveryRouteMap">
+                  <div class="map-placeholder-guide" id="deliveryMapPlaceholder">
+                    <div class="map-placeholder-icon">🗺️</div>
+                    <div style="font-weight: 700; font-size: 0.95rem;">Enter pickup & drop-off locations</div>
+                    <div style="font-size: 0.8rem; opacity: 0.85; margin-top: 4px;">Live turn-by-turn road route will appear here</div>
+                  </div>
+                </div>
+                <div class="map-legend-row">
+                  <span class="legend-chip"><span class="chip-color green"></span> Pickup</span>
+                  <span class="legend-chip"><span class="chip-color red"></span> Drop-off</span>
+                  <span style="margin-left: auto; font-size: 0.8rem; color: var(--text-muted);" id="mapRouteMeta">0.0 km • 0 mins</span>
+                </div>
+              </div>
 
               <!-- 3. Item Details -->
               <fieldset class="form-fieldset">
@@ -982,6 +1010,30 @@
             <div class="courier-sub" id="trackCourierVehicle">Boda Boda (Bajaj Boxer) • Plate: UFA 482B</div>
           </div>
           <a href="#" class="courier-call-btn" id="trackCourierCallBtn">Call Courier</a>
+        </div>
+
+        <!-- Live Tracking Visual Route Map Card -->
+        <div class="delivery-map-preview-card" id="trackingMapCard" style="margin-top: 1.25rem; margin-bottom: 1.25rem;">
+          <div class="map-card-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="map-status-dot"></span>
+              <strong style="font-size: 0.9rem;">Live Route & Dispatch Tracking</strong>
+            </div>
+            <span class="map-badge" id="trackingMapBadge">Live GPS Route</span>
+          </div>
+          <div class="route-map-canvas" id="trackingRouteMap" style="height: 270px;">
+            <div class="map-placeholder-guide" id="trackingMapPlaceholder">
+              <div class="map-placeholder-icon">🛵</div>
+              <div style="font-weight: 700; font-size: 0.95rem;">Live Route Map</div>
+              <div style="font-size: 0.8rem; opacity: 0.85; margin-top: 4px;">Plotting pickup, destination & dispatch route...</div>
+            </div>
+          </div>
+          <div class="map-legend-row" id="trackingMapLegend">
+            <span class="legend-chip"><span class="chip-color green"></span> Pickup</span>
+            <span class="legend-chip"><span class="chip-color red"></span> Destination</span>
+            <span class="legend-chip" id="trackingCourierLegend" style="display: none;"><span class="chip-color" style="background: #2563eb;"></span> Courier</span>
+            <span style="margin-left: auto; font-size: 0.8rem; color: var(--text-muted);" id="trackingRouteMeta">—</span>
+          </div>
         </div>
 
         <!-- Details Grid -->

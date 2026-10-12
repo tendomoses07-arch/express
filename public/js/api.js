@@ -169,6 +169,15 @@ const api = {
     },
     async getActive() {
       return await request('/deliveries/active');
+    },
+    async getMapConfig() {
+      return await request('/deliveries/map-config');
+    },
+    async reverseGeocode(lat, lng) {
+      return await request('/deliveries/reverse-geocode', {
+        method: 'POST',
+        body: JSON.stringify({ lat, lng })
+      });
     }
   },
 

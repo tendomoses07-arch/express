@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const { authenticateToken, requireCourier } = require('./auth');
+const { authenticateToken, requireCourier, requireAdmin } = require('./auth');
 const realtimeService = require('../services/realtimeService');
 
-// Public listing of active couriers (for dispatcher/assignment dropdown)
-router.get('/', (req, res) => {
+// Administrative listing of couriers (requires admin authorization)
+router.get('/', authenticateToken, requireAdmin, (req, res) => {
   try {
     const couriers = db.prepare(`
       SELECT id, full_name, phone, vehicle_type, plate_number, status, rating, total_trips
@@ -42,9 +42,25 @@ router.get('/my-deliveries', authenticateToken, requireCourier, (req, res) => {
         id DESC
     `).all(courierId);
 
-    // SECURITY: Strip delivery_pin so courier cannot inspect it via network or console
+    // SECURITY: Strip delivery_pin and generate Google Maps Turn-by-Turn Navigation URLs
     deliveries.forEach(d => {
       delete d.delivery_pin;
+      const pLat = d.pickup_latitude || d.pickup_lat;
+      const pLng = d.pickup_longitude || d.pickup_lng;
+      const dLat = d.dropoff_latitude || d.delivery_lat;
+      const dLng = d.dropoff_longitude || d.delivery_lng;
+
+      if (pLat && pLng) {
+        d.pickup_nav_url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pLat + ',' + pLng)}${d.pickup_place_id ? '&destination_place_id=' + encodeURIComponent(d.pickup_place_id) : ''}`;
+      } else {
+        d.pickup_nav_url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.pickup_location + ', Uganda')}`;
+      }
+
+      if (dLat && dLng) {
+        d.dropoff_nav_url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dLat + ',' + dLng)}${d.dropoff_place_id ? '&destination_place_id=' + encodeURIComponent(d.dropoff_place_id) : ''}`;
+      } else {
+        d.dropoff_nav_url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.delivery_location + ', Uganda')}`;
+      }
     });
 
     res.json(deliveries);

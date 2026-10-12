@@ -660,6 +660,536 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // ===================================================================
+  // 2B. GOOGLE MAPS PLATFORM, GPS GEOLOCATION & VISUAL ROUTE MAPS
+  // ===================================================================
+  let googleMapsSdkLoaded = false;
+  let googleMapInstance = null;
+  let googleMapMarkers = [];
+  let googleMapPolyline = null;
+  let trackingMapInstance = null;
+  let trackingMapMarkers = [];
+  let trackingMapPolyline = null;
+  let pickupAutocomplete = null;
+  let deliveryAutocomplete = null;
+  let mapConfig = null;
+
+  async function initGoogleMapsPlatform() {
+    try {
+      mapConfig = await window.kolaApi.deliveries.getMapConfig();
+      const badge = document.getElementById('mapProviderBadge');
+      if (mapConfig && mapConfig.googleMapsConfigured && mapConfig.apiKey) {
+        if (badge) badge.textContent = 'Google Maps Active';
+        await loadGoogleMapsScript(mapConfig.apiKey);
+        initGooglePlacesAutocomplete();
+      } else {
+        if (badge) badge.textContent = '⚡ Live Road Routing';
+      }
+    } catch (err) {
+      console.warn('Map config load note:', err);
+    }
+  }
+
+  function loadGoogleMapsScript(apiKey) {
+    if (window.google && window.google.maps) {
+      googleMapsSdkLoaded = true;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places,geometry`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        googleMapsSdkLoaded = true;
+        resolve();
+      };
+      script.onerror = (err) => {
+        console.warn('Google Maps script failed to load, falling back to visual road canvas:', err);
+        resolve();
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  function initGooglePlacesAutocomplete() {
+    if (!window.google || !window.google.maps || !window.google.maps.places) return;
+
+    if (pickupInput && !pickupAutocomplete) {
+      pickupAutocomplete = new google.maps.places.Autocomplete(pickupInput, {
+        componentRestrictions: { country: 'ug' },
+        fields: ['place_id', 'geometry', 'name', 'formatted_address']
+      });
+      pickupAutocomplete.addListener('place_changed', () => {
+        const place = pickupAutocomplete.getPlace();
+        if (place && place.geometry && place.geometry.location) {
+          const lat = place.geometry.location.lat();
+          const lng = place.geometry.location.lng();
+          const placeName = place.name || place.formatted_address;
+          selectedPickupCoords = {
+            lat,
+            lng,
+            name: placeName,
+            place_id: place.place_id || null
+          };
+          if (pickupPill && pickupPillText) {
+            pickupPillText.textContent = `📍 Geocoded: ${placeName}`;
+            pickupPill.style.display = 'inline-flex';
+          }
+          updateAddressClearButtons();
+          triggerQuoteRecalculate();
+        }
+      });
+    }
+
+    if (deliveryInput && !deliveryAutocomplete) {
+      deliveryAutocomplete = new google.maps.places.Autocomplete(deliveryInput, {
+        componentRestrictions: { country: 'ug' },
+        fields: ['place_id', 'geometry', 'name', 'formatted_address']
+      });
+      deliveryAutocomplete.addListener('place_changed', () => {
+        const place = deliveryAutocomplete.getPlace();
+        if (place && place.geometry && place.geometry.location) {
+          const lat = place.geometry.location.lat();
+          const lng = place.geometry.location.lng();
+          const placeName = place.name || place.formatted_address;
+          selectedDeliveryCoords = {
+            lat,
+            lng,
+            name: placeName,
+            place_id: place.place_id || null
+          };
+          if (deliveryPill && deliveryPillText) {
+            deliveryPillText.textContent = `🏁 Geocoded: ${placeName}`;
+            deliveryPill.style.display = 'inline-flex';
+          }
+          updateAddressClearButtons();
+          triggerQuoteRecalculate();
+        }
+      });
+    }
+  }
+
+  // Device GPS "Use my current location" Button Handler
+  const btnUseCurrentLocation = document.getElementById('btnUseCurrentLocation');
+  if (btnUseCurrentLocation) {
+    btnUseCurrentLocation.addEventListener('click', async () => {
+      if (!navigator.geolocation) {
+        showToast('Geolocation is not supported by your browser', 'error');
+        return;
+      }
+
+      const originalHtml = btnUseCurrentLocation.innerHTML;
+      btnUseCurrentLocation.disabled = true;
+      btnUseCurrentLocation.innerHTML = '<span>⏳</span> Locating...';
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            btnUseCurrentLocation.innerHTML = '<span>⚡</span> Geocoding...';
+
+            const res = await window.kolaApi.deliveries.reverseGeocode(lat, lng);
+            const address = res.formatted_address || res.name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+            if (pickupInput) {
+              pickupInput.value = address;
+            }
+
+            selectedPickupCoords = {
+              lat,
+              lng,
+              name: address,
+              place_id: res.place_id || null
+            };
+
+            if (pickupPill && pickupPillText) {
+              pickupPillText.textContent = `📍 Current Location: ${address.split(',')[0]}`;
+              pickupPill.style.display = 'inline-flex';
+            }
+
+            updateAddressClearButtons();
+            showToast('📍 Current location acquired!', 'success');
+            triggerQuoteRecalculate();
+          } catch (err) {
+            console.error('Reverse geocode error:', err);
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const fallbackName = `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+            if (pickupInput) pickupInput.value = fallbackName;
+            selectedPickupCoords = { lat, lng, name: fallbackName, place_id: null };
+            if (pickupPill && pickupPillText) {
+              pickupPillText.textContent = `📍 GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+              pickupPill.style.display = 'inline-flex';
+            }
+            updateAddressClearButtons();
+            showToast('📍 Current GPS coordinates acquired!', 'success');
+            triggerQuoteRecalculate();
+          } finally {
+            btnUseCurrentLocation.disabled = false;
+            btnUseCurrentLocation.innerHTML = originalHtml;
+          }
+        },
+        (error) => {
+          btnUseCurrentLocation.disabled = false;
+          btnUseCurrentLocation.innerHTML = originalHtml;
+          let msg = 'Unable to acquire GPS location';
+          if (error.code === 1) msg = 'Location permission denied. Please allow location access in your device/browser settings.';
+          else if (error.code === 2) msg = 'Location position unavailable.';
+          else if (error.code === 3) msg = 'Location request timed out.';
+          showToast(msg, 'warning');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  }
+
+  // Interactive Route Map Renderer (Request View)
+  function updateDeliveryRouteMap(quote) {
+    const mapCanvas = document.getElementById('deliveryRouteMap');
+    const metaEl = document.getElementById('mapRouteMeta');
+    const badgeEl = document.getElementById('mapProviderBadge');
+    if (!mapCanvas) return;
+
+    if (!quote || (!quote.origin && !selectedPickupCoords)) {
+      mapCanvas.innerHTML = `
+        <div class="map-placeholder-guide" id="deliveryMapPlaceholder">
+          <div class="map-placeholder-icon">🗺️</div>
+          <div style="font-weight: 700; font-size: 0.95rem;">Enter pickup & drop-off locations</div>
+          <div style="font-size: 0.8rem; opacity: 0.85; margin-top: 4px;">Live turn-by-turn road route will appear here</div>
+        </div>
+      `;
+      if (metaEl) metaEl.textContent = '0.0 km • 0 mins';
+      return;
+    }
+
+    const distKm = quote.distance_km || 0;
+    const etaMins = quote.duration_minutes || quote.eta_minutes || 0;
+    if (metaEl) metaEl.textContent = `${distKm} km • ~${etaMins} mins`;
+
+    const originLat = (quote.origin && quote.origin.lat) || (selectedPickupCoords && selectedPickupCoords.lat) || 0.3476;
+    const originLng = (quote.origin && quote.origin.lng) || (selectedPickupCoords && selectedPickupCoords.lng) || 32.5825;
+    const originName = (quote.origin && (quote.origin.title || quote.origin.display_name)) || (selectedPickupCoords && selectedPickupCoords.name) || 'Pickup';
+
+    const destLat = (quote.destination && quote.destination.lat) || (selectedDeliveryCoords && selectedDeliveryCoords.lat) || 0.3163;
+    const destLng = (quote.destination && quote.destination.lng) || (selectedDeliveryCoords && selectedDeliveryCoords.lng) || 32.5811;
+    const destName = (quote.destination && (quote.destination.title || quote.destination.display_name)) || (selectedDeliveryCoords && selectedDeliveryCoords.name) || 'Destination';
+
+    if (window.google && window.google.maps && googleMapsSdkLoaded) {
+      if (badgeEl) badgeEl.textContent = 'Google Maps Active';
+      try {
+        let mapDiv = document.getElementById('googleDeliveryMapInner');
+        if (!mapDiv) {
+          mapCanvas.innerHTML = '<div id="googleDeliveryMapInner" style="width:100%; height:100%;"></div>';
+          mapDiv = document.getElementById('googleDeliveryMapInner');
+        }
+
+        const centerLat = (originLat + destLat) / 2;
+        const centerLng = (originLng + destLng) / 2;
+
+        if (!googleMapInstance) {
+          googleMapInstance = new google.maps.Map(mapDiv, {
+            center: { lat: centerLat, lng: centerLng },
+            zoom: 12,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+            zoomControl: true,
+            styles: [
+              { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+              { featureType: 'transit', stylers: [{ visibility: 'simplified' }] }
+            ]
+          });
+        }
+
+        googleMapMarkers.forEach(m => m.setMap(null));
+        googleMapMarkers = [];
+        if (googleMapPolyline) googleMapPolyline.setMap(null);
+
+        const pickupMarker = new google.maps.Marker({
+          position: { lat: originLat, lng: originLng },
+          map: googleMapInstance,
+          title: `Pickup: ${originName}`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#10b981',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2.5
+          }
+        });
+
+        const dropoffMarker = new google.maps.Marker({
+          position: { lat: destLat, lng: destLng },
+          map: googleMapInstance,
+          title: `Drop-off: ${destName}`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#ef4444',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2.5
+          }
+        });
+
+        googleMapMarkers.push(pickupMarker, dropoffMarker);
+
+        let pathPoints = [{ lat: originLat, lng: originLng }, { lat: destLat, lng: destLng }];
+        if (quote.polyline && window.google.maps.geometry && window.google.maps.geometry.encoding) {
+          try {
+            pathPoints = google.maps.geometry.encoding.decodePath(quote.polyline);
+          } catch (e) {}
+        }
+
+        googleMapPolyline = new google.maps.Polyline({
+          path: pathPoints,
+          geodesic: true,
+          strokeColor: '#2563eb',
+          strokeOpacity: 0.85,
+          strokeWeight: 5,
+          map: googleMapInstance
+        });
+
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend({ lat: originLat, lng: originLng });
+        bounds.extend({ lat: destLat, lng: destLng });
+        googleMapInstance.fitBounds(bounds, { top: 30, right: 30, bottom: 30, left: 30 });
+        return;
+      } catch (err) {
+        console.warn('Google Map render fallback to SVG canvas:', err);
+      }
+    }
+
+    // High-Aesthetic Interactive SVG Fallback Route Canvas
+    if (badgeEl) badgeEl.textContent = '⚡ Live Road Route';
+    mapCanvas.innerHTML = `
+      <div style="position:relative; width:100%; height:100%; background:linear-gradient(135deg, #090e17 0%, #111a2e 100%); overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:1rem; box-sizing:border-box;">
+        <svg style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#10b981" />
+              <stop offset="50%" stop-color="#38bdf8" />
+              <stop offset="100%" stop-color="#ef4444" />
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          </pattern>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+          <path d="M 60 70 Q 180 180, 240 120 T 420 180" fill="none" stroke="rgba(56,189,248,0.25)" stroke-width="10" stroke-linecap="round"/>
+          <path d="M 60 70 Q 180 180, 240 120 T 420 180" fill="none" stroke="url(#routeGrad)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+          <path d="M 60 70 Q 180 180, 240 120 T 420 180" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6,8" stroke-linecap="round" opacity="0.8">
+            <animate attributeName="stroke-dashoffset" from="28" to="0" dur="1.2s" repeatCount="indefinite" />
+          </path>
+        </svg>
+
+        <div style="position:relative; z-index:2; display:flex; justify-content:space-between; align-items:flex-start;">
+          <div style="background:rgba(15,23,42,0.85); backdrop-filter:blur(8px); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:0.4rem 0.75rem; max-width:65%;">
+            <div style="font-size:0.7rem; color:#10b981; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">📍 PICKUP</div>
+            <div style="font-size:0.825rem; font-weight:700; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(originName)}</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.85); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:0.35rem 0.65rem; text-align:right;">
+            <div style="font-size:0.7rem; color:#94a3b8; font-weight:700;">DISTANCE</div>
+            <div style="font-size:0.95rem; font-weight:900; color:#38bdf8;">${distKm} km</div>
+          </div>
+        </div>
+
+        <div style="position:relative; z-index:2; display:flex; justify-content:space-between; align-items:flex-end;">
+          <div style="background:rgba(15,23,42,0.85); backdrop-filter:blur(8px); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:0.4rem 0.75rem; max-width:65%;">
+            <div style="font-size:0.7rem; color:#ef4444; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">🏁 DROP-OFF</div>
+            <div style="font-size:0.825rem; font-weight:700; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(destName)}</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.85); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:0.35rem 0.65rem; text-align:right;">
+            <div style="font-size:0.7rem; color:#94a3b8; font-weight:700;">EST. TRAVEL</div>
+            <div style="font-size:0.95rem; font-weight:900; color:#10b981;">~${etaMins} mins</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Interactive Route Map Renderer (Tracking View)
+  function renderTrackingRouteMap(delivery, courier) {
+    const mapCanvas = document.getElementById('trackingRouteMap');
+    const metaEl = document.getElementById('trackingRouteMeta');
+    const courierLegend = document.getElementById('trackingCourierLegend');
+    if (!mapCanvas || !delivery) return;
+
+    const originLat = delivery.pickup_latitude || 0.3476;
+    const originLng = delivery.pickup_longitude || 32.5825;
+    const destLat = delivery.dropoff_latitude || 0.3163;
+    const destLng = delivery.dropoff_longitude || 32.5811;
+    const distKm = delivery.road_distance || delivery.distance_km || 0;
+    const etaMins = delivery.estimated_travel_time || delivery.eta_minutes || 0;
+
+    if (metaEl) {
+      metaEl.textContent = `${distKm} km • ~${etaMins} mins road route`;
+    }
+
+    if (courierLegend) {
+      courierLegend.style.display = courier ? 'inline-flex' : 'none';
+    }
+
+    if (window.google && window.google.maps && googleMapsSdkLoaded) {
+      try {
+        let mapDiv = document.getElementById('googleTrackingMapInner');
+        if (!mapDiv) {
+          mapCanvas.innerHTML = '<div id="googleTrackingMapInner" style="width:100%; height:100%;"></div>';
+          mapDiv = document.getElementById('googleTrackingMapInner');
+        }
+
+        const centerLat = (originLat + destLat) / 2;
+        const centerLng = (originLng + destLng) / 2;
+
+        if (!trackingMapInstance) {
+          trackingMapInstance = new google.maps.Map(mapDiv, {
+            center: { lat: centerLat, lng: centerLng },
+            zoom: 12,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+            zoomControl: true,
+            styles: [
+              { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+              { featureType: 'transit', stylers: [{ visibility: 'simplified' }] }
+            ]
+          });
+        }
+
+        trackingMapMarkers.forEach(m => m.setMap(null));
+        trackingMapMarkers = [];
+        if (trackingMapPolyline) trackingMapPolyline.setMap(null);
+
+        const pickupMarker = new google.maps.Marker({
+          position: { lat: originLat, lng: originLng },
+          map: trackingMapInstance,
+          title: `Pickup: ${delivery.pickup_location}`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#10b981',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2.5
+          }
+        });
+
+        const dropoffMarker = new google.maps.Marker({
+          position: { lat: destLat, lng: destLng },
+          map: trackingMapInstance,
+          title: `Destination: ${delivery.delivery_location}`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#ef4444',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2.5
+          }
+        });
+        trackingMapMarkers.push(pickupMarker, dropoffMarker);
+
+        if (courier && (courier.current_lat || courier.latitude)) {
+          const cLat = courier.current_lat || courier.latitude;
+          const cLng = courier.current_lng || courier.longitude;
+          const courierMarker = new google.maps.Marker({
+            position: { lat: cLat, lng: cLng },
+            map: trackingMapInstance,
+            title: `Courier: ${courier.name}`,
+            icon: {
+              path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+              scale: 6,
+              fillColor: '#2563eb',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 2
+            }
+          });
+          trackingMapMarkers.push(courierMarker);
+        }
+
+        const pathPoints = [{ lat: originLat, lng: originLng }, { lat: destLat, lng: destLng }];
+        trackingMapPolyline = new google.maps.Polyline({
+          path: pathPoints,
+          geodesic: true,
+          strokeColor: '#2563eb',
+          strokeOpacity: 0.85,
+          strokeWeight: 5,
+          map: trackingMapInstance
+        });
+
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend({ lat: originLat, lng: originLng });
+        bounds.extend({ lat: destLat, lng: destLng });
+        trackingMapInstance.fitBounds(bounds, { top: 30, right: 30, bottom: 30, left: 30 });
+        return;
+      } catch (e) {
+        console.warn('Google tracking map render error, falling back:', e);
+      }
+    }
+
+    // High Aesthetic Visual Route Canvas Fallback
+    const statusText = delivery.status || 'Active';
+    mapCanvas.innerHTML = `
+      <div style="position:relative; width:100%; height:100%; background:linear-gradient(135deg, #090e17 0%, #111a2e 100%); overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:1rem; box-sizing:border-box;">
+        <svg style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="trackGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#10b981" />
+              <stop offset="50%" stop-color="#3b82f6" />
+              <stop offset="100%" stop-color="#ef4444" />
+            </linearGradient>
+            <filter id="trackGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+          <pattern id="tgrid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          </pattern>
+          <rect width="100%" height="100%" fill="url(#tgrid)" />
+          <path d="M 50 80 Q 200 190, 260 110 T 450 170" fill="none" stroke="rgba(37,99,235,0.25)" stroke-width="10" stroke-linecap="round"/>
+          <path d="M 50 80 Q 200 190, 260 110 T 450 170" fill="none" stroke="url(#trackGrad)" stroke-width="4" stroke-linecap="round" filter="url(#trackGlow)"/>
+          <path d="M 50 80 Q 200 190, 260 110 T 450 170" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6,8" stroke-linecap="round" opacity="0.8">
+            <animate attributeName="stroke-dashoffset" from="28" to="0" dur="1.2s" repeatCount="indefinite" />
+          </path>
+        </svg>
+
+        <div style="position:relative; z-index:2; display:flex; justify-content:space-between; align-items:flex-start;">
+          <div style="background:rgba(15,23,42,0.88); backdrop-filter:blur(8px); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:0.4rem 0.75rem; max-width:60%;">
+            <div style="font-size:0.7rem; color:#10b981; font-weight:800;">📍 PICKUP</div>
+            <div style="font-size:0.825rem; font-weight:700; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(delivery.pickup_location)}</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.88); backdrop-filter:blur(8px); border:1px solid rgba(59,130,246,0.3); border-radius:8px; padding:0.35rem 0.65rem; text-align:right;">
+            <div style="font-size:0.7rem; color:#93c5fd; font-weight:700;">STATUS</div>
+            <div style="font-size:0.875rem; font-weight:900; color:#38bdf8;">${statusText}</div>
+          </div>
+        </div>
+
+        <div style="position:relative; z-index:2; display:flex; justify-content:space-between; align-items:flex-end;">
+          <div style="background:rgba(15,23,42,0.88); backdrop-filter:blur(8px); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:0.4rem 0.75rem; max-width:60%;">
+            <div style="font-size:0.7rem; color:#ef4444; font-weight:800;">🏁 DESTINATION</div>
+            <div style="font-size:0.825rem; font-weight:700; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(delivery.delivery_location)}</div>
+          </div>
+          <div style="background:rgba(15,23,42,0.88); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:0.35rem 0.65rem; text-align:right;">
+            <div style="font-size:0.7rem; color:#94a3b8; font-weight:700;">ROAD METRICS</div>
+            <div style="font-size:0.875rem; font-weight:900; color:#10b981;">${distKm} km • ~${etaMins}m</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Initialize Maps
+  initGoogleMapsPlatform();
+
   // Helper escape function
   function escapeHtml(str) {
     if (!str) return '';
@@ -845,6 +1375,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (distFeeEl) distFeeEl.textContent = '—';
     const totalEl = document.getElementById('quoteTotalFee');
     if (totalEl) totalEl.innerHTML = `—<small>UGX</small>`;
+    updateDeliveryRouteMap(null);
   }
 
   function triggerQuoteRecalculate() {
@@ -977,6 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const totalEl = document.getElementById('quoteTotalFee');
     if (totalEl) totalEl.innerHTML = `${quote.total_fee.toLocaleString()}<small>UGX</small>`;
+    updateDeliveryRouteMap(quote);
   }
 
   // Attach live listeners for quote inputs
@@ -1060,12 +1592,14 @@ document.addEventListener('DOMContentLoaded', () => {
           sender_phone: senderPhone,
           pickup_location: pickupLocation,
           pickup_coords: selectedPickupCoords,
+          pickup_place_id: selectedPickupCoords?.place_id || null,
           pickup_directions: pickupDirections,
           pickup_notes: pickupNotes,
           recipient_name: recipientName,
           recipient_phone: recipientPhone,
           delivery_location: deliveryLocation,
           delivery_coords: selectedDeliveryCoords,
+          dropoff_place_id: selectedDeliveryCoords?.place_id || null,
           delivery_directions: deliveryDirections,
           delivery_notes: deliveryNotes,
           item_description: itemDescription,
@@ -1268,6 +1802,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render Status Stepper & Milestone Flow
     renderStatusStepper(delivery.status);
     renderTimelineMilestones(delivery, history);
+    renderTrackingRouteMap(delivery, courier);
 
     // Handover Confirmation Cards
     const handoverActionCard = document.getElementById('trackHandoverActionCard');
@@ -1752,7 +2287,10 @@ document.addEventListener('DOMContentLoaded', () => {
               <div style="font-weight:800; margin-bottom:0.2rem;">${escapeHtml(del.pickup_location)}</div>
               <div style="font-size:0.825rem; color:var(--text-muted); margin-bottom:0.5rem;">${escapeHtml(del.pickup_directions || 'No special directions')}</div>
               <div style="font-size:0.85rem; font-weight:700;">Sender: ${escapeHtml(del.sender_name)}</div>
-              <a href="tel:${del.sender_phone}" class="courier-call-btn" style="margin-top:0.4rem; padding:0.3rem 0.75rem;">📞 Call Sender (${del.sender_phone})</a>
+              <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.4rem;">
+                <a href="tel:${del.sender_phone}" class="courier-call-btn" style="padding:0.3rem 0.75rem;">📞 Call Sender (${del.sender_phone})</a>
+                ${del.pickup_nav_url ? `<a href="${del.pickup_nav_url}" target="_blank" rel="noopener noreferrer" class="btn-nav-action btn-nav-pickup" style="padding:0.3rem 0.75rem;">🧭 Navigate (Maps)</a>` : ''}
+              </div>
             </div>
 
             <div class="task-stop">
@@ -1760,7 +2298,10 @@ document.addEventListener('DOMContentLoaded', () => {
               <div style="font-weight:800; margin-bottom:0.2rem;">${escapeHtml(del.delivery_location)}</div>
               <div style="font-size:0.825rem; color:var(--text-muted); margin-bottom:0.5rem;">${escapeHtml(del.delivery_directions || 'Call on arrival')}</div>
               <div style="font-size:0.85rem; font-weight:700;">Recipient: ${escapeHtml(del.recipient_name)}</div>
-              <a href="tel:${del.recipient_phone}" class="courier-call-btn" style="margin-top:0.4rem; padding:0.3rem 0.75rem; background:var(--kola-gradient); color:#060913;">📞 Call Recipient (${del.recipient_phone})</a>
+              <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.4rem;">
+                <a href="tel:${del.recipient_phone}" class="courier-call-btn" style="background:var(--kola-gradient); color:#060913; padding:0.3rem 0.75rem;">📞 Call Recipient (${del.recipient_phone})</a>
+                ${del.dropoff_nav_url ? `<a href="${del.dropoff_nav_url}" target="_blank" rel="noopener noreferrer" class="btn-nav-action btn-nav-dropoff" style="padding:0.3rem 0.75rem;">🧭 Navigate (Maps)</a>` : ''}
+              </div>
             </div>
           </div>
 

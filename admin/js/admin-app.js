@@ -232,38 +232,6 @@
         } catch (_) {}
       });
 
-      // Quick Role Presets (Preserves custom user inputs & synchronizes updated credentials)
-      const applyRolePreset = (role, email, defaultPass) => {
-        const idInput = document.getElementById('loginIdentifier');
-        const passInput = document.getElementById('loginPassword');
-        if (idInput) idInput.value = email;
-
-        // Retrieve remembered updated password if admin has changed it
-        const savedPass = localStorage.getItem('kola_admin_pwd_' + role);
-        const passToFill = savedPass || defaultPass;
-
-        if (passInput) {
-          passInput.value = passToFill;
-          passInput.focus();
-        }
-
-        const syncNote = document.getElementById('presetSyncNote');
-        if (syncNote) {
-          syncNote.textContent = savedPass ? `Using updated ${role.replace('_', ' ')} password` : `Default ${role.replace('_', ' ')} credentials`;
-          syncNote.style.color = savedPass ? '#34d399' : 'var(--text-dim)';
-        }
-      };
-
-      document.getElementById('fillSuperAdmin')?.addEventListener('click', () => {
-        applyRolePreset('super_admin', 'admin@kolaexpress.ug', 'admin123');
-      });
-      document.getElementById('fillOpsAdmin')?.addEventListener('click', () => {
-        applyRolePreset('operations_admin', 'ops@kolaexpress.ug', 'ops123');
-      });
-      document.getElementById('fillFinanceAdmin')?.addEventListener('click', () => {
-        applyRolePreset('finance_admin', 'finance@kolaexpress.ug', 'finance123');
-      });
-
       // Navigation Links
       document.querySelectorAll('.sidebar-nav .nav-link').forEach((link) => {
         link.addEventListener('click', (e) => {
@@ -1631,11 +1599,13 @@
             <div>
               <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:700;">Pickup Location</div>
               <div style="font-size:0.85rem; font-weight:600; margin-top:2px;">${this.escapeHtml(d.pickup_location)}</div>
+              ${d.pickup_latitude ? `<div style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);">GPS: ${Number(d.pickup_latitude).toFixed(4)}, ${Number(d.pickup_longitude).toFixed(4)}</div>` : ''}
             </div>
 
             <div>
               <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:700;">Destination Dropoff</div>
               <div style="font-size:0.85rem; font-weight:600; margin-top:2px;">${this.escapeHtml(d.dropoff_location)}</div>
+              ${d.dropoff_latitude ? `<div style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);">GPS: ${Number(d.dropoff_latitude).toFixed(4)}, ${Number(d.dropoff_longitude).toFixed(4)}</div>` : ''}
             </div>
 
             <div>
@@ -1646,6 +1616,30 @@
             <div>
               <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:700;">Payment & Fare</div>
               <div style="font-size:0.85rem; font-weight:700; color:#34d399; margin-top:2px;">UGX ${(d.price || 0).toLocaleString()} • ${d.payment_status === 'paid' ? '✓ Paid' : (d.payment_status || 'Pending')}</div>
+            </div>
+          </div>
+
+          <!-- Google Maps Authoritative Road Routing Bar -->
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem 1rem; margin-bottom:1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:700;">Road Distance &amp; Travel ETA</div>
+              <div style="font-size:0.95rem; font-weight:800; color:#38bdf8; margin-top:2px;">
+                ${d.road_distance || d.distance_km || '—'} km • ~${d.estimated_travel_time || d.eta_minutes || '—'} mins
+              </div>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <a href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(d.pickup_location)}&destination=${encodeURIComponent(d.dropoff_location)}" 
+                 target="_blank" rel="noopener noreferrer" 
+                 class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; font-weight:700;">
+                🗺️ View on Google Maps ↗
+              </a>
+              ${d.pickup_latitude && d.dropoff_latitude ? `
+                <a href="https://www.google.com/maps/dir/?api=1&origin=${d.pickup_latitude},${d.pickup_longitude}&destination=${d.dropoff_latitude},${d.dropoff_longitude}" 
+                   target="_blank" rel="noopener noreferrer" 
+                   class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; font-weight:700;">
+                  📍 Exact GPS Google Route ↗
+                </a>
+              ` : ''}
             </div>
           </div>
 
