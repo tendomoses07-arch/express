@@ -138,6 +138,7 @@ async function calculateAuthoritativeRoute({ origin, destination }) {
         }
         const durationMinutes = Math.max(5, Math.ceil(durationSeconds / 60));
 
+        const poly = route.polyline?.encodedPolyline || null;
         const result = {
           success: true,
           provider: 'google_maps',
@@ -147,7 +148,8 @@ async function calculateAuthoritativeRoute({ origin, destination }) {
           duration_minutes: durationMinutes,
           duration_seconds: durationSeconds,
           eta_text: formatEta(durationMinutes),
-          polyline: route.polyline?.encodedPolyline || null,
+          polyline: poly,
+          coordinates: poly ? mapService.decodePolyline(poly) : [[oLat, oLng], [dLat, dLng]],
           route_description: route.description || 'Google Maps Driving Route',
           origin: { lat: oLat, lng: oLng },
           destination: { lat: dLat, lng: dLng }
@@ -170,6 +172,7 @@ async function calculateAuthoritativeRoute({ origin, destination }) {
         const distanceKm = Math.max(1.0, Math.round((distanceMeters / 1000) * 10) / 10);
         const durationSeconds = leg.duration.value;
         const durationMinutes = Math.max(5, Math.ceil(durationSeconds / 60));
+        const poly = dirData.routes[0].overview_polyline?.points || null;
 
         const result = {
           success: true,
@@ -180,7 +183,8 @@ async function calculateAuthoritativeRoute({ origin, destination }) {
           duration_minutes: durationMinutes,
           duration_seconds: durationSeconds,
           eta_text: formatEta(durationMinutes),
-          polyline: dirData.routes[0].overview_polyline?.points || null,
+          polyline: poly,
+          coordinates: poly ? mapService.decodePolyline(poly) : [[oLat, oLng], [dLat, dLng]],
           route_description: leg.start_address ? `${leg.start_address} → ${leg.end_address}` : 'Google Maps Route',
           origin: { lat: oLat, lng: oLng },
           destination: { lat: dLat, lng: dLng }
@@ -200,25 +204,29 @@ async function calculateAuthoritativeRoute({ origin, destination }) {
 }
 
 /**
- * Fallback to OSRM / Uganda Tortuosity road calculation without dropping the request
+ * Fallback to high-precision OSRM / Uganda Road Graph calculation without dropping the request
  */
 async function fallbackToOsrmRoute(origin, destination, reason = '') {
   try {
     const osrmResult = await mapService.calculateLiveRoadRoute({ origin, destination });
     return {
       ...osrmResult,
-      provider: 'osrm',
-      engine: 'OSRM Driving Engine (Resilient Fallback)',
-      fallback_reason: reason
+      fallback_reason: reason || undefined
     };
   } catch (err) {
     // Ultimate Haversine fallback with Kampala road tortuosity
     const { calculateKampalaWakisoDistance } = require('../pricing');
+    const oLat = parseFloat(origin.lat || origin.latitude);
+    const oLng = parseFloat(origin.lng || origin.longitude);
+    const dLat = parseFloat(destination.lat || destination.latitude);
+    const dLng = parseFloat(destination.lng || destination.longitude);
+
     const km = calculateKampalaWakisoDistance(
-      `${origin.lat},${origin.lng}`,
-      `${destination.lat},${destination.lng}`
+      `${oLat},${oLng}`,
+      `${dLat},${dLng}`
     );
     const mins = Math.max(10, Math.ceil(km * 2.5));
+    const pathCoords = [[oLat, oLng], [dLat, dLng]];
     return {
       success: true,
       provider: 'local_geometry',
@@ -228,9 +236,10 @@ async function fallbackToOsrmRoute(origin, destination, reason = '') {
       duration_minutes: mins,
       duration_seconds: mins * 60,
       eta_text: formatEta(mins),
-      polyline: null,
-      origin,
-      destination,
+      coordinates: pathCoords,
+      polyline: mapService.encodePolyline ? mapService.encodePolyline(pathCoords) : null,
+      origin: { lat: oLat, lng: oLng },
+      destination: { lat: dLat, lng: dLng },
       fallback_reason: err.message
     };
   }

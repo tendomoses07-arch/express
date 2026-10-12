@@ -567,9 +567,11 @@ async function calculateLiveDeliveryQuote({
     eta_text,
     route_type,
     route_source: route.engine || route.route_description || 'Live Road Routing',
-    map_provider: route.provider || 'google_maps',
+    map_provider: route.provider || 'osrm',
     distance_meters: route.distance_meters || Math.round(distance_km * 1000),
     polyline: route.polyline || null,
+    coordinates: route.coordinates || null,
+    steps: route.steps || [],
     origin: {
       address: pickup,
       title: originLocation.title,

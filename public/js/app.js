@@ -674,6 +674,47 @@ document.addEventListener('DOMContentLoaded', () => {
   let deliveryAutocomplete = null;
   let mapConfig = null;
 
+  // Leaflet Interactive OpenStreetMap State
+  let leafletDeliveryMap = null;
+  let leafletDeliveryLayers = [];
+  let leafletTrackingMap = null;
+  let leafletTrackingLayers = [];
+
+  function decodePolyline(str) {
+    if (!str) return [];
+    const coords = [];
+    let index = 0;
+    const len = str.length;
+    let lat = 0;
+    let lng = 0;
+
+    while (index < len) {
+      let b;
+      let shift = 0;
+      let result = 0;
+      do {
+        b = str.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = str.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      coords.push([lat / 1e5, lng / 1e5]);
+    }
+    return coords;
+  }
+
   async function initGoogleMapsPlatform() {
     try {
       mapConfig = await window.kolaApi.deliveries.getMapConfig();
@@ -845,6 +886,173 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ===================================================================
+  // LEAFLET INTERACTIVE ROUTE MAP RENDERERS
+  // ===================================================================
+  function renderLeafletDeliveryRoute(quote, originLat, originLng, originName, destLat, destLng, destName) {
+    const mapCanvas = document.getElementById('deliveryRouteMap');
+    if (!mapCanvas || !window.L) return;
+
+    let mapDiv = document.getElementById('leafletDeliveryMapInner');
+    if (!mapDiv) {
+      mapCanvas.innerHTML = '<div id="leafletDeliveryMapInner" style="width:100%; height:100%; border-radius:10px; overflow:hidden; z-index:1;"></div>';
+      mapDiv = document.getElementById('leafletDeliveryMapInner');
+    }
+
+    if (!leafletDeliveryMap) {
+      leafletDeliveryMap = L.map(mapDiv, {
+        zoomControl: true,
+        attributionControl: false,
+        fadeAnimation: true
+      });
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
+      }).addTo(leafletDeliveryMap);
+    }
+
+    leafletDeliveryLayers.forEach(l => {
+      try { leafletDeliveryMap.removeLayer(l); } catch(e){}
+    });
+    leafletDeliveryLayers = [];
+
+    // 1. Pickup Marker (Green Pin)
+    const pickupIcon = L.divIcon({
+      className: 'kola-map-marker',
+      html: '<div style="background:#10b981; width:28px; height:28px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 12px rgba(16,185,129,0.8); display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:bold;">📍</div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+    const pickupMarker = L.marker([originLat, originLng], { icon: pickupIcon, title: `Pickup: ${originName}` })
+      .bindPopup(`<strong>📍 Pickup:</strong><br>${escapeHtml(originName)}`)
+      .addTo(leafletDeliveryMap);
+    leafletDeliveryLayers.push(pickupMarker);
+
+    // 2. Drop-off Marker (Red Pin)
+    const dropoffIcon = L.divIcon({
+      className: 'kola-map-marker',
+      html: '<div style="background:#ef4444; width:28px; height:28px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 12px rgba(239,68,68,0.8); display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:bold;">🏁</div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+    const dropoffMarker = L.marker([destLat, destLng], { icon: dropoffIcon, title: `Drop-off: ${destName}` })
+      .bindPopup(`<strong>🏁 Destination:</strong><br>${escapeHtml(destName)}`)
+      .addTo(leafletDeliveryMap);
+    leafletDeliveryLayers.push(dropoffMarker);
+
+    // 3. Polyline Coordinates
+    let latLngs = [];
+    if (quote && Array.isArray(quote.coordinates) && quote.coordinates.length > 0) {
+      latLngs = quote.coordinates;
+    } else if (quote && quote.polyline) {
+      latLngs = decodePolyline(quote.polyline);
+    } else {
+      latLngs = [[originLat, originLng], [destLat, destLng]];
+    }
+
+    if (latLngs.length > 0) {
+      const glowLine = L.polyline(latLngs, {
+        color: '#38bdf8',
+        weight: 8,
+        opacity: 0.35,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(leafletDeliveryMap);
+      leafletDeliveryLayers.push(glowLine);
+
+      const routeLine = L.polyline(latLngs, {
+        color: '#2563eb',
+        weight: 5,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(leafletDeliveryMap);
+      leafletDeliveryLayers.push(routeLine);
+
+      leafletDeliveryMap.fitBounds(routeLine.getBounds(), { padding: [35, 35] });
+      setTimeout(() => {
+        try { leafletDeliveryMap.invalidateSize(); } catch(e){}
+      }, 150);
+    }
+  }
+
+  function renderLeafletTrackingRoute(delivery, courier, originLat, originLng, destLat, destLng) {
+    const mapCanvas = document.getElementById('trackingRouteMap');
+    if (!mapCanvas || !window.L) return;
+
+    let mapDiv = document.getElementById('leafletTrackingMapInner');
+    if (!mapDiv) {
+      mapCanvas.innerHTML = '<div id="leafletTrackingMapInner" style="width:100%; height:100%; border-radius:10px; overflow:hidden; z-index:1;"></div>';
+      mapDiv = document.getElementById('leafletTrackingMapInner');
+    }
+
+    if (!leafletTrackingMap) {
+      leafletTrackingMap = L.map(mapDiv, {
+        zoomControl: true,
+        attributionControl: false,
+        fadeAnimation: true
+      });
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
+      }).addTo(leafletTrackingMap);
+    }
+
+    leafletTrackingLayers.forEach(l => {
+      try { leafletTrackingMap.removeLayer(l); } catch(e){}
+    });
+    leafletTrackingLayers = [];
+
+    const pickupIcon = L.divIcon({
+      className: 'kola-map-marker',
+      html: '<div style="background:#10b981; width:28px; height:28px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 12px rgba(16,185,129,0.8); display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:bold;">📍</div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+    const pMarker = L.marker([originLat, originLng], { icon: pickupIcon })
+      .bindPopup(`<strong>📍 Pickup:</strong><br>${escapeHtml(delivery.pickup_location)}`)
+      .addTo(leafletTrackingMap);
+    leafletTrackingLayers.push(pMarker);
+
+    const dropoffIcon = L.divIcon({
+      className: 'kola-map-marker',
+      html: '<div style="background:#ef4444; width:28px; height:28px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 12px rgba(239,68,68,0.8); display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:bold;">🏁</div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+    const dMarker = L.marker([destLat, destLng], { icon: dropoffIcon })
+      .bindPopup(`<strong>🏁 Destination:</strong><br>${escapeHtml(delivery.delivery_location)}`)
+      .addTo(leafletTrackingMap);
+    leafletTrackingLayers.push(dMarker);
+
+    if (courier && (courier.current_lat || courier.latitude)) {
+      const cLat = courier.current_lat || courier.latitude;
+      const cLng = courier.current_lng || courier.longitude;
+      const courierIcon = L.divIcon({
+        className: 'kola-courier-marker',
+        html: '<div style="background:#2563eb; width:32px; height:32px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 14px rgba(37,99,235,0.9); display:flex; align-items:center; justify-content:center; font-size:16px;">🛵</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      const cMarker = L.marker([cLat, cLng], { icon: courierIcon })
+        .bindPopup(`<strong>🛵 Courier:</strong> ${escapeHtml(courier.name)}<br>Status: In Transit`)
+        .addTo(leafletTrackingMap);
+      leafletTrackingLayers.push(cMarker);
+    }
+
+    const path = [[originLat, originLng], [destLat, destLng]];
+    const glow = L.polyline(path, { color: '#38bdf8', weight: 8, opacity: 0.35, dashArray: '6, 8' }).addTo(leafletTrackingMap);
+    const route = L.polyline(path, { color: '#2563eb', weight: 5, opacity: 0.95 }).addTo(leafletTrackingMap);
+    leafletTrackingLayers.push(glow, route);
+
+    leafletTrackingMap.fitBounds(route.getBounds(), { padding: [35, 35] });
+    setTimeout(() => {
+      try { leafletTrackingMap.invalidateSize(); } catch(e){}
+    }, 150);
+  }
+
   // Interactive Route Map Renderer (Request View)
   function updateDeliveryRouteMap(quote) {
     const mapCanvas = document.getElementById('deliveryRouteMap');
@@ -959,7 +1167,18 @@ document.addEventListener('DOMContentLoaded', () => {
         googleMapInstance.fitBounds(bounds, { top: 30, right: 30, bottom: 30, left: 30 });
         return;
       } catch (err) {
-        console.warn('Google Map render fallback to SVG canvas:', err);
+        console.warn('Google Map render fallback to Leaflet/SVG canvas:', err);
+      }
+    }
+
+    // High-Precision Interactive Leaflet OpenStreetMap Route Map
+    if (window.L) {
+      if (badgeEl) badgeEl.textContent = '⚡ Live Interactive Road Map';
+      try {
+        renderLeafletDeliveryRoute(quote, originLat, originLng, originName, destLat, destLng, destName);
+        return;
+      } catch (leafErr) {
+        console.warn('Leaflet render fallback to SVG canvas:', leafErr);
       }
     }
 
@@ -1131,7 +1350,17 @@ document.addEventListener('DOMContentLoaded', () => {
         trackingMapInstance.fitBounds(bounds, { top: 30, right: 30, bottom: 30, left: 30 });
         return;
       } catch (e) {
-        console.warn('Google tracking map render error, falling back:', e);
+        console.warn('Google tracking map render error, falling back to Leaflet/SVG:', e);
+      }
+    }
+
+    // High-Precision Interactive Leaflet OpenStreetMap Tracking Map
+    if (window.L) {
+      try {
+        renderLeafletTrackingRoute(delivery, courier, originLat, originLng, destLat, destLng);
+        return;
+      } catch (leafErr) {
+        console.warn('Leaflet tracking render note, using SVG fallback:', leafErr);
       }
     }
 

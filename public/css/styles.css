@@ -6028,6 +6028,29 @@ input:checked + .slider:before {
   color: var(--text-main);
 }
 
+.kola-map-marker, .kola-courier-marker {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));
+  transition: transform 0.2s ease;
+}
+
+.kola-map-marker:hover, .kola-courier-marker:hover {
+  transform: scale(1.15);
+}
+
+.leaflet-container {
+  font-family: inherit;
+  background: #0f172a !important;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(15, 23, 42, 0.9) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
 .chip-color {
   width: 10px;
   height: 10px;
