@@ -248,6 +248,31 @@ function initDatabase() {
     console.warn('Admin logs table column migration check warning:', logColErr.message);
   }
 
+  // Ensure pricing_rules has active category surcharges restored if previously zeroed
+  try {
+    const activePricing = db.prepare('SELECT id, category_surcharges FROM pricing_rules ORDER BY id DESC LIMIT 1').get();
+    if (activePricing) {
+      let cats = {};
+      try { cats = JSON.parse(activePricing.category_surcharges || '{}'); } catch (e) {}
+      const allZero = Object.keys(cats).length > 0 && Object.values(cats).every(v => Number(v) === 0);
+      if (allZero || !activePricing.category_surcharges || activePricing.category_surcharges === '{}') {
+        const restoredCategories = JSON.stringify({
+          document: 0,
+          small_parcel: 500,
+          medium_box: 1500,
+          large_package: 3000,
+          groceries: 1000,
+          fragile: 2000
+        });
+        db.prepare('UPDATE pricing_rules SET category_surcharges = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(restoredCategories, activePricing.id);
+        console.log('✓ Restored standard category surcharges in pricing_rules table.');
+      }
+    }
+  } catch (priceMigrateErr) {
+    console.warn('Pricing rules category migration check warning:', priceMigrateErr.message);
+  }
+
   // Migrate deliveries columns if running against existing database
   try {
     const deliveryCols = db.prepare('PRAGMA table_info(deliveries)').all().map(c => c.name);
@@ -508,11 +533,11 @@ function seedInitialData() {
   if (!existingRules) {
     const defaultCategories = JSON.stringify({
       document: 0,
-      small_parcel: 0,
-      medium_box: 0,
-      large_package: 0,
-      groceries: 0,
-      fragile: 0
+      small_parcel: 500,
+      medium_box: 1500,
+      large_package: 3000,
+      groceries: 1000,
+      fragile: 2000
     });
 
     db.prepare(`

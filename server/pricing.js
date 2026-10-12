@@ -289,21 +289,35 @@ const calculateKampalaDistance = calculateKampalaWakisoDistance;
  */
 function getActivePricingRules() {
   const rules = db.prepare('SELECT * FROM pricing_rules ORDER BY id DESC LIMIT 1').get();
+  const defaultCategorySurcharges = {
+    document: 0,
+    small_parcel: 500,
+    medium_box: 1500,
+    large_package: 3000,
+    groceries: 1000,
+    fragile: 2000
+  };
+
   if (!rules) {
     return {
       base_fee: 4000,
       per_km_rate: 800,
       min_fee: 3500,
       urgent_surcharge: 3000,
-      category_surcharges: {
-        document: 0,
-        small_parcel: 0,
-        medium_box: 0,
-        large_package: 0,
-        groceries: 0,
-        fragile: 0
-      }
+      category_surcharges: defaultCategorySurcharges
     };
+  }
+
+  let catSurcharges = defaultCategorySurcharges;
+  if (rules.category_surcharges) {
+    try {
+      const parsed = typeof rules.category_surcharges === 'string'
+        ? JSON.parse(rules.category_surcharges)
+        : rules.category_surcharges;
+      if (parsed && typeof parsed === 'object') {
+        catSurcharges = parsed;
+      }
+    } catch (e) {}
   }
 
   return {
@@ -312,19 +326,14 @@ function getActivePricingRules() {
     per_km_rate: rules.per_km_rate,
     min_fee: rules.min_fee,
     urgent_surcharge: rules.urgent_surcharge,
-    category_surcharges: typeof rules.category_surcharges === 'string'
-      ? JSON.parse(rules.category_surcharges)
-      : rules.category_surcharges,
+    category_surcharges: catSurcharges,
     updated_at: rules.updated_at
   };
 }
 
 /**
- * DYNAMIC KAMPALA & WAKISO DISTRICT ROAD RATE CALCULATION ENGINE:
- * Calculates delivery quote dynamically on roads of Kampala and Wakiso District areas.
- * Dynamic road rate: 800 UGX per 1 km (e.g. 5 km = 4,000 UGX, 10 km = 8,000 UGX, 46.2 km = 36,960 UGX).
- * Package size/category surcharge is zeroed (0 UGX) so rates are purely and transparently
- * driven by dynamic road distance across Kampala and Wakiso District.
+ * STANDARD KAMPALA & WAKISO DISTRICT ROAD DISTANCE RATE CALCULATION:
+ * Calculates delivery quote based on distance and parcel category surcharges.
  */
 function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel', is_urgent = false, custom_km = null }) {
   const rules = getActivePricingRules();
@@ -337,18 +346,19 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
   const base_fee = rules.base_fee; // Base dispatch fee (4,000 UGX)
   const per_km = rules.per_km_rate || 800; // 800 UGX per 1 km
 
-  // Dynamic road distance fee: exactly 800 UGX per 1 km on Kampala & Wakiso roads
   const distance_fee = Math.round(distance_km * per_km);
 
-  // Package size surcharge is 0 (rates are purely distance-driven on Kampala & Wakiso roads)
-  const category_fee = 0;
+  // Package size surcharge from rules
+  const category_fee = (rules.category_surcharges && rules.category_surcharges[category] !== undefined)
+    ? rules.category_surcharges[category]
+    : 0;
 
   // Urgent express surcharge
   const urgent_fee = is_urgent ? rules.urgent_surcharge : 0;
 
-  // Raw total & enforce minimum fee rounded to nearest 500 UGX
+  // Raw total & enforce minimum fee rounded to nearest 100 UGX
   const raw_total = base_fee + distance_fee + category_fee + urgent_fee;
-  const total_fee = Math.max(rules.min_fee, Math.round(raw_total / 500) * 500);
+  const total_fee = Math.max(rules.min_fee, Math.round(raw_total / 100) * 100);
 
   const p1 = findClosestUgandaLocation(pickup);
   const p2 = findClosestUgandaLocation(destination);
@@ -381,7 +391,7 @@ function calculateDeliveryQuote({ pickup, destination, category = 'small_parcel'
     base_fee,
     distance_fee,
     category,
-    category_fee: 0,
+    category_fee,
     is_urgent: !!is_urgent,
     urgent_fee,
     min_fee: rules.min_fee,
@@ -529,10 +539,12 @@ async function calculateLiveDeliveryQuote({
   const base_fee = rules.base_fee;
   const per_km = rules.per_km_rate || 800;
   const distance_fee = Math.round(distance_km * per_km);
-  const category_fee = 0; // Size surcharge zeroed
+  const category_fee = (rules.category_surcharges && rules.category_surcharges[category] !== undefined)
+    ? rules.category_surcharges[category]
+    : 0;
   const urgent_fee = is_urgent ? rules.urgent_surcharge : 0;
   const raw_total = base_fee + distance_fee + category_fee + urgent_fee;
-  const total_fee = Math.max(rules.min_fee, Math.round(raw_total / 500) * 500);
+  const total_fee = Math.max(rules.min_fee, Math.round(raw_total / 100) * 100);
 
   // Route classification
   let route_type = 'Live Verified Road Route';
@@ -577,7 +589,7 @@ async function calculateLiveDeliveryQuote({
     base_fee,
     distance_fee,
     category,
-    category_fee: 0,
+    category_fee,
     is_urgent: !!is_urgent,
     urgent_fee,
     min_fee: rules.min_fee,
@@ -603,7 +615,7 @@ function updatePricingRules({ base_fee, per_km_rate, min_fee, urgent_surcharge, 
     Number(per_km_rate),
     Number(min_fee),
     Number(urgent_surcharge),
-    categoryStr || '{"document":0,"small_parcel":0,"medium_box":0,"large_package":0,"groceries":0,"fragile":0}'
+    categoryStr || '{"document":0,"small_parcel":500,"medium_box":1500,"large_package":3000,"groceries":1000,"fragile":2000}'
   );
 
   return getActivePricingRules();

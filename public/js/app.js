@@ -1487,11 +1487,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const catRow = document.getElementById('quoteCategoryRow');
     const catFeeEl = document.getElementById('quoteCategoryFee');
     if (catRow) {
-      if (quote.category_fee > 0) {
-        catRow.style.display = 'flex';
-        if (catFeeEl) catFeeEl.textContent = `+ UGX ${quote.category_fee.toLocaleString()}`;
-      } else {
-        catRow.style.display = 'none';
+      catRow.style.display = 'flex';
+      if (catFeeEl) {
+        catFeeEl.textContent = quote.category_fee > 0
+          ? `+ UGX ${quote.category_fee.toLocaleString()}`
+          : 'UGX 0';
       }
     }
     
