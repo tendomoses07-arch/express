@@ -9,13 +9,12 @@ const emailService = require('../services/emailService');
 
 let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET === 'kola_express_secret_jwt_key_2026') {
+  if (!global.__KOLA_EPHEMERAL_JWT_SECRET) {
+    global.__KOLA_EPHEMERAL_JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  }
+  JWT_SECRET = global.__KOLA_EPHEMERAL_JWT_SECRET;
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('[SECURITY FATAL] Production environment requires a secure, non-default JWT_SECRET in environment configuration.');
-  } else {
-    if (!global.__KOLA_EPHEMERAL_JWT_SECRET) {
-      global.__KOLA_EPHEMERAL_JWT_SECRET = crypto.randomBytes(32).toString('hex');
-    }
-    JWT_SECRET = process.env.JWT_SECRET || global.__KOLA_EPHEMERAL_JWT_SECRET;
+    console.warn('[SECURITY NOTICE] Production environment: Using high-entropy dynamic JWT_SECRET. For persistent login sessions across restarts, configure JWT_SECRET in Hostinger settings.');
   }
 }
 
